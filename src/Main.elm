@@ -1,15 +1,18 @@
 module Main exposing (main)
 
+import Board
 import Browser
-import Html
+import Html exposing (Html)
 
 
 type alias Flags =
-    ()
+    { boardSvgPath : String
+    }
 
 
 type alias Model =
-    ()
+    { boardSvgPath : String
+    }
 
 
 type alias Msg =
@@ -19,8 +22,25 @@ type alias Msg =
 main : Program Flags Model Msg
 main =
     Browser.element
-        { init = \flags -> ( (), Cmd.none )
-        , view = \_ -> Html.text "Hi!"
-        , update = \_ _ -> ( (), Cmd.none )
+        { init = init
+        , view = view
+        , update = update
         , subscriptions = \_ -> Sub.none
         }
+
+
+init : Flags -> ( Model, Cmd Msg )
+init { boardSvgPath } =
+    ( { boardSvgPath = boardSvgPath }
+    , Cmd.none
+    )
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    ( model, Cmd.none )
+
+
+view : Model -> Html Msg
+view model =
+    Board.view model.boardSvgPath
