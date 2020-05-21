@@ -24,6 +24,10 @@ class TegBoard extends HTMLElement {
                         flatMap((c) => Array.from(c.children))
 
       countries.forEach((c) => {
+        c.addEventListener("click", (e) => {
+          this.dispatchEvent(new CustomEvent("country-clicked", { detail: c.id }))
+        })
+
         c.addEventListener("mouseover", (e) => e.target.classList.add("active-country"))
         c.addEventListener("mouseout", (e) => e.target.classList.remove("active-country"))
       })

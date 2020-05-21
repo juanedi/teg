@@ -1,18 +1,44 @@
-module Board exposing (view)
+module Board exposing
+    ( onCountryClicked
+    , view
+    )
 
+import Country exposing (Country)
 import Css exposing (fill, hex, property)
 import Css.Global exposing (class, id, selector)
 import Html
 import Html.Attributes as Attr
+import Html.Events as Events
 import Html.Styled exposing (Html)
+import Json.Decode as Decode
 import Json.Encode as Encode
 
 
-view : String -> Html.Styled.Html msg
-view svgPath =
+type Attribute msg
+    = OnCountryClicked (Country -> msg)
+
+
+onCountryClicked : (Country -> msg) -> Attribute msg
+onCountryClicked =
+    OnCountryClicked
+
+
+view : String -> List (Attribute msg) -> Html.Styled.Html msg
+view svgPath attributes =
     Html.Styled.fromUnstyled
         (Html.node "teg-board"
-            [ Attr.property "svgPath" (Encode.string svgPath) ]
+            (List.append
+                [ Attr.property "svgPath" (Encode.string svgPath) ]
+                (List.map
+                    (\attr ->
+                        case attr of
+                            OnCountryClicked handler ->
+                                Events.on "country-clicked"
+                                    (Decode.map handler (Decode.field "detail" Country.decoder))
+                    )
+                    attributes
+                )
+            )
             [ Css.Global.global styles
                 |> -- NOTE: the stylesheet generation breaks when usinng a styled
                    -- node here.

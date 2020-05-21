@@ -2,6 +2,7 @@ module Main exposing (main)
 
 import Board
 import Browser
+import Country exposing (Country)
 import Html.Styled as Html exposing (Html)
 
 
@@ -15,8 +16,8 @@ type alias Model =
     }
 
 
-type alias Msg =
-    ()
+type Msg
+    = CountryClicked Country
 
 
 main : Program Flags Model Msg
@@ -38,9 +39,16 @@ init { boardSvgPath } =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        CountryClicked country ->
+            let
+                _ =
+                    Debug.log "country clicked" country
+            in
+            ( model, Cmd.none )
 
 
 view : Model -> Html Msg
 view model =
     Board.view model.boardSvgPath
+        [ Board.onCountryClicked CountryClicked ]
