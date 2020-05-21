@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Board
 import Browser
-import Html exposing (Html)
+import Html.Styled as Html exposing (Html)
 
 
 type alias Flags =
@@ -23,7 +23,7 @@ main : Program Flags Model Msg
 main =
     Browser.element
         { init = init
-        , view = view
+        , view = view >> Html.toUnstyled
         , update = update
         , subscriptions = \_ -> Sub.none
         }
