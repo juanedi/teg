@@ -1,15 +1,23 @@
 class TegBoard extends HTMLElement {
+  constructor() {
+    super()
+    this.shadow = this.attachShadow({mode: 'open'})
+  }
+
   connectedCallback() {
     let embed = document.createElement("object")
     embed.data = this.svgPath
     embed.type = "image/svg+xml"
 
-    let stylesheet = this.previousSibling
+    let stylesheet = this.children[0]
 
     embed.addEventListener("load", () => {
       let svgDoc = embed.contentDocument
 
-      svgDoc.getElementsByTagNameNS("http://www.w3.org/2000/svg", "defs")[0].appendChild(stylesheet);
+      if (stylesheet) {
+        let defs = svgDoc.getElementsByTagNameNS("http://www.w3.org/2000/svg", "defs")[0]
+        if (defs) { defs.appendChild(stylesheet) }
+      }
 
       let countries = Array.
                         from(svgDoc.getElementById("paises").children).
@@ -21,7 +29,7 @@ class TegBoard extends HTMLElement {
       })
     })
 
-    this.appendChild(embed)
+    this.shadow.appendChild(embed)
   }
 }
 
