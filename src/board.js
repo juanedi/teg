@@ -4,14 +4,12 @@ class TegBoard extends HTMLElement {
     embed.data = this.svgPath
     embed.type = "image/svg+xml"
 
+    let stylesheet = this.previousSibling
+
     embed.addEventListener("load", () => {
       let svgDoc = embed.contentDocument
 
-      let linkElm = svgDoc.createElementNS("http://www.w3.org/1999/xhtml", "link");
-      linkElm.setAttribute("href", "/src/board.css");
-      linkElm.setAttribute("type", "text/css");
-      linkElm.setAttribute("rel", "stylesheet");
-      svgDoc.getElementsByTagNameNS("http://www.w3.org/2000/svg", "defs")[0].appendChild(linkElm);
+      svgDoc.getElementsByTagNameNS("http://www.w3.org/2000/svg", "defs")[0].appendChild(stylesheet);
 
       let countries = Array.
                         from(svgDoc.getElementById("paises").children).
