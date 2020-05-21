@@ -3,7 +3,9 @@ module Main exposing (main)
 import Board
 import Browser
 import Country exposing (Country)
+import Css
 import Html.Styled as Html exposing (Html)
+import Html.Styled.Attributes exposing (css)
 
 
 type alias Flags =
@@ -77,14 +79,26 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    Board.init model.boardSvgPath
-        |> Board.onCountryClicked Clicked
-        |> Board.onCountryMouseEnter MouseEntered
-        |> Board.onCountryMouseLeave MouseLeft
-        |> Board.withHighlightedCountries
-            (List.filterMap identity
-                [ model.lastClickedCountry
-                , model.hoveredCountry
+    Html.div
+        [ css
+            [ Css.displayFlex
+            , Css.flexDirection Css.column
+            ]
+        ]
+        [ Board.init model.boardSvgPath
+            |> Board.withStyles
+                [ Css.maxWidth (Css.vw 60)
                 ]
-            )
-        |> Board.view
+            |> Board.onCountryClicked Clicked
+            |> Board.onCountryMouseEnter MouseEntered
+            |> Board.onCountryMouseLeave MouseLeft
+            |> Board.withHighlightedCountries
+                (List.filterMap identity
+                    [ model.lastClickedCountry
+                    , model.hoveredCountry
+                    ]
+                )
+            |> Board.view
+        , Html.pre []
+            [ Html.text (Debug.toString model) ]
+        ]

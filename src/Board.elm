@@ -5,6 +5,7 @@ module Board exposing
     , onCountryMouseLeave
     , view
     , withHighlightedCountries
+    , withStyles
     )
 
 import Country exposing (Country)
@@ -15,6 +16,7 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Html.Keyed
 import Html.Styled exposing (Html)
+import Html.Styled.Attributes exposing (css)
 import Json.Decode as Decode
 import Json.Encode as Encode
 
@@ -26,6 +28,7 @@ type Board msg
         , onCountryMouseEnter : Maybe (Country -> msg)
         , onCountryMouseLeave : Maybe (Country -> msg)
         , highlightedCoutries : List Country
+        , styles : List Css.Style
         }
 
 
@@ -37,6 +40,7 @@ init svgPath =
         , onCountryMouseEnter = Nothing
         , onCountryMouseLeave = Nothing
         , highlightedCoutries = []
+        , styles = []
         }
 
 
@@ -60,17 +64,24 @@ withHighlightedCountries countries (Board guts) =
     Board { guts | highlightedCoutries = countries }
 
 
+withStyles : List Css.Style -> Board msg -> Board msg
+withStyles styles_ (Board guts) =
+    Board { guts | styles = styles_ }
+
+
 view : Board msg -> Html.Styled.Html msg
 view ((Board guts) as board) =
-    Html.Styled.fromUnstyled
-        (Html.node "teg-board"
-            (Attr.property "svgPath" (Encode.string guts.svgPath) :: attributes board)
-            [ Css.Global.global (styles board)
-                |> -- NOTE: the stylesheet generation breaks when usinng a styled
-                   -- node here.
-                   Html.Styled.toUnstyled
-            ]
-        )
+    Html.Styled.div [ css guts.styles ]
+        [ Html.Styled.fromUnstyled
+            (Html.node "teg-board"
+                (Attr.property "svgPath" (Encode.string guts.svgPath) :: attributes board)
+                [ Css.Global.global (styles board)
+                    |> -- NOTE: the stylesheet generation breaks when usinng a styled
+                       -- node here.
+                       Html.Styled.toUnstyled
+                ]
+            )
+        ]
 
 
 attributes : Board msg -> List (Html.Attribute msg)
