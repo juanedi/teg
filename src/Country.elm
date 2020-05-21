@@ -20,7 +20,7 @@ type Country
     | Chile
     | China
     | Colombia
-    | Egypy
+    | Egypt
     | Ethiopia
     | France
     | Germany
@@ -99,8 +99,8 @@ svgId country =
         Colombia ->
             "colombia"
 
-        Egypy ->
-            "egypy"
+        Egypt ->
+            "egypt"
 
         Ethiopia ->
             "ethiopia"
@@ -361,8 +361,8 @@ decoder =
                     "south_africa" ->
                         Decode.succeed SouthAfrica
 
-                    "egypy" ->
-                        Decode.succeed Egypy
+                    "egypt" ->
+                        Decode.succeed Egypt
 
                     "ethiopia" ->
                         Decode.succeed Ethiopia
