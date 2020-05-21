@@ -50,7 +50,19 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Clicked country ->
-            ( { model | lastClickedCountry = Just country }
+            ( { model
+                | lastClickedCountry =
+                    case model.lastClickedCountry of
+                        Nothing ->
+                            Just country
+
+                        Just clickedCountry ->
+                            if clickedCountry == country then
+                                Nothing
+
+                            else
+                                Just country
+              }
             , Cmd.none
             )
 
