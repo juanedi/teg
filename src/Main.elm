@@ -13,11 +13,15 @@ type alias Flags =
 
 type alias Model =
     { boardSvgPath : String
+    , lastClickedCountry : Maybe Country
+    , hoveredCountry : Maybe Country
     }
 
 
 type Msg
-    = CountryClicked Country
+    = Clicked Country
+    | MouseEntered Country
+    | MouseLeft Country
 
 
 main : Program Flags Model Msg
@@ -32,7 +36,10 @@ main =
 
 init : Flags -> ( Model, Cmd Msg )
 init { boardSvgPath } =
-    ( { boardSvgPath = boardSvgPath }
+    ( { boardSvgPath = boardSvgPath
+      , lastClickedCountry = Nothing
+      , hoveredCountry = Nothing
+      }
     , Cmd.none
     )
 
@@ -40,15 +47,38 @@ init { boardSvgPath } =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        CountryClicked country ->
-            let
-                _ =
-                    Debug.log "country clicked" country
-            in
-            ( model, Cmd.none )
+        Clicked country ->
+            ( { model | lastClickedCountry = Just country }
+            , Cmd.none
+            )
+
+        MouseEntered country ->
+            ( { model | hoveredCountry = Just country }
+            , Cmd.none
+            )
+
+        MouseLeft country ->
+            ( { model
+                | hoveredCountry =
+                    case model.hoveredCountry of
+                        Nothing ->
+                            Nothing
+
+                        Just hoveredCountry ->
+                            if hoveredCountry == country then
+                                Nothing
+
+                            else
+                                Just hoveredCountry
+              }
+            , Cmd.none
+            )
 
 
 view : Model -> Html Msg
 view model =
     Board.view model.boardSvgPath
-        [ Board.onCountryClicked CountryClicked ]
+        [ Board.onCountryClicked Clicked
+        , Board.onCountryMouseEnter MouseEntered
+        , Board.onCountryMouseLeave MouseLeft
+        ]

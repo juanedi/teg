@@ -1,5 +1,7 @@
 module Board exposing
     ( onCountryClicked
+    , onCountryMouseEnter
+    , onCountryMouseLeave
     , view
     )
 
@@ -16,11 +18,23 @@ import Json.Encode as Encode
 
 type Attribute msg
     = OnCountryClicked (Country -> msg)
+    | OnCountryMouseEnter (Country -> msg)
+    | OnCountryMouseLeave (Country -> msg)
 
 
 onCountryClicked : (Country -> msg) -> Attribute msg
 onCountryClicked =
     OnCountryClicked
+
+
+onCountryMouseEnter : (Country -> msg) -> Attribute msg
+onCountryMouseEnter =
+    OnCountryMouseEnter
+
+
+onCountryMouseLeave : (Country -> msg) -> Attribute msg
+onCountryMouseLeave =
+    OnCountryMouseLeave
 
 
 view : String -> List (Attribute msg) -> Html.Styled.Html msg
@@ -34,6 +48,14 @@ view svgPath attributes =
                         case attr of
                             OnCountryClicked handler ->
                                 Events.on "country-clicked"
+                                    (Decode.map handler (Decode.field "detail" Country.decoder))
+
+                            OnCountryMouseEnter handler ->
+                                Events.on "country-mouseenter"
+                                    (Decode.map handler (Decode.field "detail" Country.decoder))
+
+                            OnCountryMouseLeave handler ->
+                                Events.on "country-mouseleave"
                                     (Decode.map handler (Decode.field "detail" Country.decoder))
                     )
                     attributes

@@ -28,8 +28,14 @@ class TegBoard extends HTMLElement {
           this.dispatchEvent(new CustomEvent("country-clicked", { detail: c.id }))
         })
 
-        c.addEventListener("mouseover", (e) => e.target.classList.add("active-country"))
-        c.addEventListener("mouseout", (e) => e.target.classList.remove("active-country"))
+        c.addEventListener("mouseenter", (e) => {
+          e.target.classList.add("active-country")
+          this.dispatchEvent(new CustomEvent("country-mouseenter", { detail: c.id }))
+        })
+        c.addEventListener("mouseleave", (e) => {
+          e.target.classList.remove("active-country")
+          this.dispatchEvent(new CustomEvent("country-mouseleave", { detail: c.id }))
+        })
       })
     })
 
