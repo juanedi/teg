@@ -4,6 +4,7 @@ module Board exposing
     , onCountryMouseEnter
     , onCountryMouseLeave
     , view
+    , withHighlightedCountries
     )
 
 import Country exposing (Country)
@@ -12,6 +13,7 @@ import Css.Global exposing (class, id, selector)
 import Html
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Keyed
 import Html.Styled exposing (Html)
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -23,6 +25,7 @@ type Board msg
         , onCountryClicked : Maybe (Country -> msg)
         , onCountryMouseEnter : Maybe (Country -> msg)
         , onCountryMouseLeave : Maybe (Country -> msg)
+        , highlightedCoutries : List Country
         }
 
 
@@ -33,6 +36,7 @@ init svgPath =
         , onCountryClicked = Nothing
         , onCountryMouseEnter = Nothing
         , onCountryMouseLeave = Nothing
+        , highlightedCoutries = []
         }
 
 
@@ -51,12 +55,17 @@ onCountryMouseLeave handler (Board guts) =
     Board { guts | onCountryMouseLeave = Just handler }
 
 
+withHighlightedCountries : List Country -> Board msg -> Board msg
+withHighlightedCountries countries (Board guts) =
+    Board { guts | highlightedCoutries = countries }
+
+
 view : Board msg -> Html.Styled.Html msg
 view ((Board guts) as board) =
     Html.Styled.fromUnstyled
         (Html.node "teg-board"
             (Attr.property "svgPath" (Encode.string guts.svgPath) :: attributes board)
-            [ Css.Global.global styles
+            [ Css.Global.global (styles board)
                 |> -- NOTE: the stylesheet generation breaks when usinng a styled
                    -- node here.
                    Html.Styled.toUnstyled
@@ -83,40 +92,44 @@ attributes (Board guts) =
         ]
 
 
-styles : List Css.Global.Snippet
-styles =
-    [ id "inner_border"
-        [ fill (hex "#beddeb")
-        , property "stroke-dasharray" "3"
-        , property "stroke-opacity" "50%"
-        , property "stroke-width" "0.5px"
-        ]
-    , id "continents"
-        [ Css.pointerEventsAll
-        ]
-    , selector "#continents *"
-        [ property "fill-opacity" "60%"
-        ]
-    , selector "#continents > #north_america * "
-        [ fill (hex "#ca9782")
-        ]
-    , selector "#continents > #south_america *"
-        [ fill (hex "#848585")
-        ]
-    , selector "#continents > #asia *"
-        [ fill (hex "#868485")
-        ]
-    , selector "#continents > #australia *"
-        [ fill (hex "#7badc7")
-        ]
-    , selector "#continents > #europe *"
-        [ fill (hex "#b2a7b4")
-        ]
-    , selector "#continents > #africa *"
-        [ fill (hex "#ab8c78")
-        ]
-    , class "active-country"
-        [ property "fill-opacity" "100% !important"
-        , property "stroke-width" "1px"
-        ]
-    ]
+styles : Board msg -> List Css.Global.Snippet
+styles (Board { highlightedCoutries }) =
+    List.map
+        (\country ->
+            id (Country.svgId country)
+                [ property "fill-opacity" "100% !important"
+                , property "stroke-width" "1px"
+                ]
+        )
+        highlightedCoutries
+        ++ [ id "inner_border"
+                [ fill (hex "#beddeb")
+                , property "stroke-dasharray" "3"
+                , property "stroke-opacity" "50%"
+                , property "stroke-width" "0.5px"
+                ]
+           , id "continents"
+                [ Css.pointerEventsAll
+                ]
+           , selector "#continents *"
+                [ property "fill-opacity" "60%"
+                ]
+           , selector "#continents > #north_america * "
+                [ fill (hex "#ca9782")
+                ]
+           , selector "#continents > #south_america *"
+                [ fill (hex "#848585")
+                ]
+           , selector "#continents > #asia *"
+                [ fill (hex "#868485")
+                ]
+           , selector "#continents > #australia *"
+                [ fill (hex "#7badc7")
+                ]
+           , selector "#continents > #europe *"
+                [ fill (hex "#b2a7b4")
+                ]
+           , selector "#continents > #africa *"
+                [ fill (hex "#ab8c78")
+                ]
+           ]

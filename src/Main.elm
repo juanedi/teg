@@ -81,4 +81,10 @@ view model =
         |> Board.onCountryClicked Clicked
         |> Board.onCountryMouseEnter MouseEntered
         |> Board.onCountryMouseLeave MouseLeft
+        |> Board.withHighlightedCountries
+            (List.filterMap identity
+                [ model.lastClickedCountry
+                , model.hoveredCountry
+                ]
+            )
         |> Board.view

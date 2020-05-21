@@ -1,6 +1,7 @@
 module Country exposing
-    ( Country
+    ( Country(..)
     , decoder
+    , svgId
     )
 
 import Json.Decode as Decode exposing (Decoder)
@@ -234,7 +235,7 @@ decoder =
                     "labrador" ->
                         Decode.succeed Labrador
 
-                    "NewYork" ->
+                    "new_york" ->
                         Decode.succeed NewYork
 
                     "oregon" ->
