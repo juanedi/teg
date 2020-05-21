@@ -23,34 +23,34 @@ view svgPath =
 
 styles : List Css.Global.Snippet
 styles =
-    [ id "borde_interno"
+    [ id "inner_border"
         [ fill (hex "#beddeb")
         , property "stroke-dasharray" "3"
         , property "stroke-opacity" "50%"
         , property "stroke-width" "0.5px"
         ]
-    , id "paises"
+    , id "continents"
         [ Css.pointerEventsAll
         ]
-    , selector "#paises *"
+    , selector "#continents *"
         [ property "fill-opacity" "60%"
         ]
-    , selector "#paises > #america_norte * "
+    , selector "#continents > #north_america * "
         [ fill (hex "#ca9782")
         ]
-    , selector "#paises > #america_sur *"
+    , selector "#continents > #south_america *"
         [ fill (hex "#848585")
         ]
-    , selector "#paises > #asia *"
+    , selector "#continents > #asia *"
         [ fill (hex "#868485")
         ]
-    , selector "#paises > #oceania *"
+    , selector "#continents > #australia *"
         [ fill (hex "#7badc7")
         ]
-    , selector "#paises > #europa *"
+    , selector "#continents > #europe *"
         [ fill (hex "#b2a7b4")
         ]
-    , selector "#paises > #africa *"
+    , selector "#continents > #africa *"
         [ fill (hex "#ab8c78")
         ]
     , class "active-country"

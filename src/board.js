@@ -20,7 +20,7 @@ class TegBoard extends HTMLElement {
       }
 
       let countries = Array.
-                        from(svgDoc.getElementById("paises").children).
+                        from(svgDoc.getElementById("continents").children).
                         flatMap((c) => Array.from(c.children))
 
       countries.forEach((c) => {
