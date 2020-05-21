@@ -85,20 +85,20 @@ view model =
             , Css.flexDirection Css.column
             ]
         ]
-        [ Board.init model.boardSvgPath
-            |> Board.withStyles
-                [ Css.maxWidth (Css.vw 60)
-                ]
-            |> Board.onCountryClicked Clicked
-            |> Board.onCountryMouseEnter MouseEntered
-            |> Board.onCountryMouseLeave MouseLeft
-            |> Board.withHighlightedCountries
-                (List.filterMap identity
+        [ Board.view
+            { svgPath = model.boardSvgPath
+            , onCountryClicked = Just Clicked
+            , onCountryMouseEnter = Just MouseEntered
+            , onCountryMouseLeave = Just MouseLeft
+            , highlightedCoutries =
+                List.filterMap identity
                     [ model.lastClickedCountry
                     , model.hoveredCountry
                     ]
-                )
-            |> Board.view
+            , styles =
+                [ Css.maxWidth (Css.vw 60)
+                ]
+            }
         , Html.pre []
             [ Html.text (Debug.toString model) ]
         ]

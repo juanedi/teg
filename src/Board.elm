@@ -1,12 +1,4 @@
-module Board exposing
-    ( init
-    , onCountryClicked
-    , onCountryMouseEnter
-    , onCountryMouseLeave
-    , view
-    , withHighlightedCountries
-    , withStyles
-    )
+module Board exposing (view)
 
 import Country exposing (Country)
 import Css exposing (fill, hex, property)
@@ -21,61 +13,21 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 
 
-type Board msg
-    = Board
-        { svgPath : String
-        , onCountryClicked : Maybe (Country -> msg)
-        , onCountryMouseEnter : Maybe (Country -> msg)
-        , onCountryMouseLeave : Maybe (Country -> msg)
-        , highlightedCoutries : List Country
-        , styles : List Css.Style
-        }
-
-
-init : String -> Board msg
-init svgPath =
-    Board
-        { svgPath = svgPath
-        , onCountryClicked = Nothing
-        , onCountryMouseEnter = Nothing
-        , onCountryMouseLeave = Nothing
-        , highlightedCoutries = []
-        , styles = []
-        }
-
-
-onCountryClicked : (Country -> msg) -> Board msg -> Board msg
-onCountryClicked handler (Board guts) =
-    Board { guts | onCountryClicked = Just handler }
-
-
-onCountryMouseEnter : (Country -> msg) -> Board msg -> Board msg
-onCountryMouseEnter handler (Board guts) =
-    Board { guts | onCountryMouseEnter = Just handler }
-
-
-onCountryMouseLeave : (Country -> msg) -> Board msg -> Board msg
-onCountryMouseLeave handler (Board guts) =
-    Board { guts | onCountryMouseLeave = Just handler }
-
-
-withHighlightedCountries : List Country -> Board msg -> Board msg
-withHighlightedCountries countries (Board guts) =
-    Board { guts | highlightedCoutries = countries }
-
-
-withStyles : List Css.Style -> Board msg -> Board msg
-withStyles styles_ (Board guts) =
-    Board { guts | styles = styles_ }
-
-
-view : Board msg -> Html.Styled.Html msg
-view ((Board guts) as board) =
-    Html.Styled.div [ css guts.styles ]
+view :
+    { svgPath : String
+    , onCountryClicked : Maybe (Country -> msg)
+    , onCountryMouseEnter : Maybe (Country -> msg)
+    , onCountryMouseLeave : Maybe (Country -> msg)
+    , highlightedCoutries : List Country
+    , styles : List Css.Style
+    }
+    -> Html.Styled.Html msg
+view config =
+    Html.Styled.div [ css config.styles ]
         [ Html.Styled.fromUnstyled
             (Html.node "teg-board"
-                (Attr.property "svgPath" (Encode.string guts.svgPath) :: attributes board)
-                [ Css.Global.global (styles board)
+                (Attr.property "svgPath" (Encode.string config.svgPath) :: attributes config)
+                [ Css.Global.global (styles config)
                     |> -- NOTE: the stylesheet generation breaks when usinng a styled
                        -- node here.
                        Html.Styled.toUnstyled
@@ -84,27 +36,33 @@ view ((Board guts) as board) =
         ]
 
 
-attributes : Board msg -> List (Html.Attribute msg)
-attributes (Board guts) =
+attributes :
+    { a
+        | onCountryClicked : Maybe (Country -> msg)
+        , onCountryMouseEnter : Maybe (Country -> msg)
+        , onCountryMouseLeave : Maybe (Country -> msg)
+    }
+    -> List (Html.Attribute msg)
+attributes { onCountryClicked, onCountryMouseEnter, onCountryMouseLeave } =
     let
         countryEventDecoder =
             Decode.field "detail" Country.decoder
     in
     List.concat
-        [ guts.onCountryClicked
+        [ onCountryClicked
             |> Maybe.map (\handler -> [ Events.on "country-clicked" (Decode.map handler countryEventDecoder) ])
             |> Maybe.withDefault []
-        , guts.onCountryMouseEnter
+        , onCountryMouseEnter
             |> Maybe.map (\handler -> [ Events.on "country-mouseenter" (Decode.map handler countryEventDecoder) ])
             |> Maybe.withDefault []
-        , guts.onCountryMouseLeave
+        , onCountryMouseLeave
             |> Maybe.map (\handler -> [ Events.on "country-mouseleave" (Decode.map handler countryEventDecoder) ])
             |> Maybe.withDefault []
         ]
 
 
-styles : Board msg -> List Css.Global.Snippet
-styles (Board { highlightedCoutries }) =
+styles : { a | highlightedCoutries : List Country } -> List Css.Global.Snippet
+styles { highlightedCoutries } =
     List.concat
         [ -- styles for highlighted countries
           List.map
