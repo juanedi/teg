@@ -1,5 +1,6 @@
 module Board exposing
-    ( onCountryClicked
+    ( init
+    , onCountryClicked
     , onCountryMouseEnter
     , onCountryMouseLeave
     , view
@@ -16,57 +17,70 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 
 
-type Attribute msg
-    = OnCountryClicked (Country -> msg)
-    | OnCountryMouseEnter (Country -> msg)
-    | OnCountryMouseLeave (Country -> msg)
+type Board msg
+    = Board
+        { svgPath : String
+        , onCountryClicked : Maybe (Country -> msg)
+        , onCountryMouseEnter : Maybe (Country -> msg)
+        , onCountryMouseLeave : Maybe (Country -> msg)
+        }
 
 
-onCountryClicked : (Country -> msg) -> Attribute msg
-onCountryClicked =
-    OnCountryClicked
+init : String -> Board msg
+init svgPath =
+    Board
+        { svgPath = svgPath
+        , onCountryClicked = Nothing
+        , onCountryMouseEnter = Nothing
+        , onCountryMouseLeave = Nothing
+        }
 
 
-onCountryMouseEnter : (Country -> msg) -> Attribute msg
-onCountryMouseEnter =
-    OnCountryMouseEnter
+onCountryClicked : (Country -> msg) -> Board msg -> Board msg
+onCountryClicked handler (Board guts) =
+    Board { guts | onCountryClicked = Just handler }
 
 
-onCountryMouseLeave : (Country -> msg) -> Attribute msg
-onCountryMouseLeave =
-    OnCountryMouseLeave
+onCountryMouseEnter : (Country -> msg) -> Board msg -> Board msg
+onCountryMouseEnter handler (Board guts) =
+    Board { guts | onCountryMouseEnter = Just handler }
 
 
-view : String -> List (Attribute msg) -> Html.Styled.Html msg
-view svgPath attributes =
+onCountryMouseLeave : (Country -> msg) -> Board msg -> Board msg
+onCountryMouseLeave handler (Board guts) =
+    Board { guts | onCountryMouseLeave = Just handler }
+
+
+view : Board msg -> Html.Styled.Html msg
+view ((Board guts) as board) =
     Html.Styled.fromUnstyled
         (Html.node "teg-board"
-            (List.append
-                [ Attr.property "svgPath" (Encode.string svgPath) ]
-                (List.map
-                    (\attr ->
-                        case attr of
-                            OnCountryClicked handler ->
-                                Events.on "country-clicked"
-                                    (Decode.map handler (Decode.field "detail" Country.decoder))
-
-                            OnCountryMouseEnter handler ->
-                                Events.on "country-mouseenter"
-                                    (Decode.map handler (Decode.field "detail" Country.decoder))
-
-                            OnCountryMouseLeave handler ->
-                                Events.on "country-mouseleave"
-                                    (Decode.map handler (Decode.field "detail" Country.decoder))
-                    )
-                    attributes
-                )
-            )
+            (Attr.property "svgPath" (Encode.string guts.svgPath) :: attributes board)
             [ Css.Global.global styles
                 |> -- NOTE: the stylesheet generation breaks when usinng a styled
                    -- node here.
                    Html.Styled.toUnstyled
             ]
         )
+
+
+attributes : Board msg -> List (Html.Attribute msg)
+attributes (Board guts) =
+    let
+        countryEventDecoder =
+            Decode.field "detail" Country.decoder
+    in
+    List.concat
+        [ guts.onCountryClicked
+            |> Maybe.map (\handler -> [ Events.on "country-clicked" (Decode.map handler countryEventDecoder) ])
+            |> Maybe.withDefault []
+        , guts.onCountryMouseEnter
+            |> Maybe.map (\handler -> [ Events.on "country-mouseenter" (Decode.map handler countryEventDecoder) ])
+            |> Maybe.withDefault []
+        , guts.onCountryMouseLeave
+            |> Maybe.map (\handler -> [ Events.on "country-mouseleave" (Decode.map handler countryEventDecoder) ])
+            |> Maybe.withDefault []
+        ]
 
 
 styles : List Css.Global.Snippet

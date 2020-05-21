@@ -77,8 +77,8 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    Board.view model.boardSvgPath
-        [ Board.onCountryClicked Clicked
-        , Board.onCountryMouseEnter MouseEntered
-        , Board.onCountryMouseLeave MouseLeft
-        ]
+    Board.init model.boardSvgPath
+        |> Board.onCountryClicked Clicked
+        |> Board.onCountryMouseEnter MouseEntered
+        |> Board.onCountryMouseLeave MouseLeft
+        |> Board.view

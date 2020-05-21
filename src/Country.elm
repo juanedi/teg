@@ -1,4 +1,7 @@
-module Country exposing (Country, decoder)
+module Country exposing
+    ( Country
+    , decoder
+    )
 
 import Json.Decode as Decode exposing (Decoder)
 
@@ -54,6 +57,160 @@ type Country
     | Uruguay
     | Yukon
     | Zaire
+
+
+svgId : Country -> String
+svgId country =
+    case country of
+        Alaska ->
+            "alaska"
+
+        Arabia ->
+            "arabia"
+
+        Aral ->
+            "aral"
+
+        Argentina ->
+            "argentina"
+
+        Australia ->
+            "australia-2"
+
+        Borneo ->
+            "borneo"
+
+        Brasil ->
+            "brasil"
+
+        California ->
+            "california"
+
+        Canada ->
+            "canada"
+
+        Chile ->
+            "chile"
+
+        China ->
+            "china"
+
+        Colombia ->
+            "colombia"
+
+        Egypy ->
+            "egypy"
+
+        Ethiopia ->
+            "ethiopia"
+
+        France ->
+            "france"
+
+        Germany ->
+            "germany"
+
+        Gobi ->
+            "gobi"
+
+        GreatBritain ->
+            "great_britain"
+
+        Greenland ->
+            "greenland"
+
+        Iceland ->
+            "iceland"
+
+        India ->
+            "india"
+
+        Iran ->
+            "iran"
+
+        Israel ->
+            "israel"
+
+        Italy ->
+            "italy"
+
+        Japan ->
+            "japan"
+
+        Java ->
+            "java"
+
+        Kamchatka ->
+            "kamchatka"
+
+        Labrador ->
+            "labrador"
+
+        Madagascar ->
+            "madagascar"
+
+        Malasya ->
+            "malasya"
+
+        Mexico ->
+            "mexico"
+
+        Mongolia ->
+            "mongolia"
+
+        NewYork ->
+            "new_york"
+
+        Oregon ->
+            "oregon"
+
+        Peru ->
+            "peru"
+
+        Poland ->
+            "poland"
+
+        Russia ->
+            "russia"
+
+        Sahara ->
+            "sahara"
+
+        SouthAfrica ->
+            "south_africa"
+
+        Spain ->
+            "spain"
+
+        Sumatra ->
+            "sumatra"
+
+        Sweden ->
+            "sweden"
+
+        Syberia ->
+            "syberia"
+
+        Tartary ->
+            "tartary"
+
+        Taymir ->
+            "taymir"
+
+        Terranova ->
+            "terranova"
+
+        Turkey ->
+            "turkey"
+
+        Uruguay ->
+            "uruguay"
+
+        Yukon ->
+            "yukon"
+
+        Zaire ->
+            "zaire"
 
 
 decoder : Decoder Country
