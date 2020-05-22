@@ -3,12 +3,11 @@ module Board exposing (view)
 import Country exposing (Country)
 import Css exposing (fill, hex, property)
 import Css.Global exposing (class, id, selector)
-import Html
+import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Html.Keyed
-import Html.Styled exposing (Html)
-import Html.Styled.Attributes exposing (css)
+import Html.Styled
 import Json.Decode as Decode
 import Json.Encode as Encode
 
@@ -21,23 +20,16 @@ view :
     , highlightedCoutries : List Country
     , styles : List Css.Style
     }
-    -> Html.Styled.Html msg
+    -> Html msg
 view config =
-    Html.Styled.div [ css config.styles ]
-        [ Html.Styled.fromUnstyled
-            (Html.node "teg-board"
-                (Attr.property "svgPath" (Encode.string config.svgPath) :: attributes config)
-                [ Css.Global.global
-                    (List.concat
-                        [ staticStyles
-                        , List.concatMap highlightedCountryStyles config.highlightedCoutries
-                        ]
-                    )
-                    |> -- NOTE: the stylesheet generation breaks when usinng a styled
-                       -- node here.
-                       Html.Styled.toUnstyled
-                ]
-            )
+    Html.node "teg-board"
+        (Attr.property "svgPath" (Encode.string config.svgPath) :: attributes config)
+        [ [ staticStyles
+          , List.concatMap highlightedCountryStyles config.highlightedCoutries
+          ]
+            |> List.concat
+            |> Css.Global.global
+            |> Html.Styled.toUnstyled
         ]
 
 

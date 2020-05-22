@@ -116,4 +116,5 @@ view model =
                 , Css.width (Css.pct 100)
                 ]
             }
+            |> Html.fromUnstyled
         ]
