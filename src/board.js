@@ -20,6 +20,7 @@ class TegBoard extends HTMLElement {
 
   connectedCallback() {
     const embed = document.createElement("object")
+    embed.style = "width: 100%; height: 100%;"
     embed.data = this.svgPath
     embed.type = "image/svg+xml"
 

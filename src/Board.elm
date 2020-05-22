@@ -28,7 +28,6 @@ view config =
             (Html.node "teg-board"
                 (Attr.property "svgPath" (Encode.string config.svgPath) :: attributes config)
                 [ Css.Global.global
-                    -- (styles config)
                     (List.concat
                         [ staticStyles
                         , List.concatMap highlightedCountryStyles config.highlightedCoutries
@@ -71,9 +70,6 @@ staticStyles : List Css.Global.Snippet
 staticStyles =
     [ id "inner_border"
         [ fill (hex "#beddeb")
-        , property "stroke-dasharray" "3"
-        , property "stroke-opacity" "50%"
-        , property "stroke-width" "0.5px"
         ]
     , id "continents"
         [ Css.pointerEventsAll

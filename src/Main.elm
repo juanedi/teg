@@ -93,8 +93,12 @@ view : Model -> Html Msg
 view model =
     Html.div
         [ css
-            [ Css.displayFlex
-            , Css.flexDirection Css.column
+            [ Css.height (Css.vh 100)
+            , Css.width (Css.vw 100)
+            , Css.position Css.fixed
+            , Css.top Css.zero
+            , Css.left Css.zero
+            , Css.backgroundColor (Css.hex "#c5d1d1")
             ]
         ]
         [ Board.view
@@ -108,9 +112,8 @@ view model =
                     , model.hoveredCountry
                     ]
             , styles =
-                [ Css.maxWidth (Css.vw 60)
+                [ Css.height (Css.pct 100)
+                , Css.width (Css.pct 100)
                 ]
             }
-        , Html.pre []
-            [ Html.text (Debug.toString model) ]
         ]
