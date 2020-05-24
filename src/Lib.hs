@@ -16,6 +16,8 @@ import Network.Wai.Logger (withStdoutLogger)
 import Servant
 import Servant.Elm (DefineElm (DefineElm), Proxy (Proxy), defElmImports, defElmOptions, generateElmModuleWith)
 import System.Environment (lookupEnv)
+import qualified System.Process
+import System.Process (cwd, proc)
 
 type APIRoutes = "game" :> Get '[JSON] Game.State
 
@@ -47,15 +49,21 @@ server = return Game.new
     :<|> serveDirectoryFileServer "ui/static"
 
 runCodegen :: IO ()
-runCodegen = do
-  putStrLn "Generating Elm code from API"
-  generateElmModuleWith
-    defElmOptions
-    ["Api"]
-    defElmImports
-    "ui/generated"
-    [ DefineElm (Proxy :: Proxy Game.State)
-    , DefineElm (Proxy :: Proxy Game.Country)
-    ]
-    (Proxy :: Proxy APIRoutes)
-  putStrLn "Done!"
+runCodegen =
+  let
+    outputDir = "./ui/generated"
+  in do
+    putStrLn "Deleting old generated code..."
+    putStrLn "Generating Elm code from API..."
+    generateElmModuleWith
+      defElmOptions
+      ["Api"]
+      defElmImports
+      outputDir
+      [ DefineElm (Proxy :: Proxy Game.State)
+      , DefineElm (Proxy :: Proxy Game.Country)
+      ]
+      (Proxy :: Proxy APIRoutes)
+    putStrLn "Formatting generated code using elm-format..."
+    System.Process.createProcess (proc "elm-format" ["Api.elm", "--yes"]){ cwd = Just outputDir }
+    putStrLn "Done!"
