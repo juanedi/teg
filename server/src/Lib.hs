@@ -10,6 +10,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Network.Wai
 import Network.Wai.Handler.Warp
+import Network.Wai.Logger (withStdoutLogger)
 import Servant
 
 data User = User
@@ -21,10 +22,18 @@ data User = User
 $(deriveJSON defaultOptions ''User)
 
 type API = "users" :> Get '[JSON] [User]
+      :<|> "_build" :> Raw
       :<|> Raw
 
-startApp :: IO ()
-startApp = run 8080 app
+startApp :: Int -> IO ()
+startApp port = do
+  withStdoutLogger $ \logger -> do
+    let settings =
+          setPort port $
+          setLogger logger $
+          defaultSettings
+    -- run port app
+    runSettings settings app
 
 app :: Application
 app = serve api server
@@ -34,7 +43,8 @@ api = Proxy
 
 server :: Server API
 server = return users
-    :<|> serveDirectoryFileServer "."
+    :<|> serveDirectoryWebApp "frontend/_build"
+    :<|> serveDirectoryFileServer "frontend/static"
 
 users :: [User]
 users = [ User 1 "Isaac" "Newton"
