@@ -5,16 +5,15 @@ module Game (
     State
   , Country
   , new
+  , tagToApiLabel
 ) where
 
-import Elm.Derive (defaultOptions, deriveBoth)
+import qualified Text.Casing as Casing
 
 data Country
   = Argentina
   | Rusia
   | Kamchatka
-
-deriveBoth defaultOptions ''Country
 
 data State =
   State
@@ -22,11 +21,13 @@ data State =
   , hoveredCountry :: Maybe Country
   }
 
-deriveBoth defaultOptions ''State
-
 new :: State
 new =
   State
     { lastClickedCountry = Just Argentina
     , hoveredCountry = Nothing
     }
+
+tagToApiLabel :: String -> String
+tagToApiLabel constructorTag =
+  Casing.toQuietSnake (Casing.fromHumps constructorTag)
