@@ -9,7 +9,7 @@ module Lib
 
 import Data.Maybe (fromMaybe)
 import Elm.Derive (defaultOptions, deriveBoth)
-import Game
+import qualified Game
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (withStdoutLogger)
@@ -17,7 +17,7 @@ import Servant
 import Servant.Elm (DefineElm (DefineElm), Proxy (Proxy), defElmImports, defElmOptions, generateElmModuleWith)
 import System.Environment (lookupEnv)
 
-type APIRoutes = "countries" :> Get '[JSON] [Country]
+type APIRoutes = "game" :> Get '[JSON] Game.State
 
 type Routes = APIRoutes
       :<|> "_build" :> Raw
@@ -42,7 +42,7 @@ api :: Proxy Routes
 api = Proxy
 
 server :: Server Routes
-server = return []
+server = return Game.new
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
@@ -51,10 +51,11 @@ runCodegen = do
   putStrLn "Generating Elm code from API"
   generateElmModuleWith
     defElmOptions
-    [ "Teg" , "Api"]
+    ["Api"]
     defElmImports
     "ui/generated"
-    [ DefineElm (Proxy :: Proxy Country)
+    [ DefineElm (Proxy :: Proxy Game.State)
+    , DefineElm (Proxy :: Proxy Game.Country)
     ]
     (Proxy :: Proxy APIRoutes)
   putStrLn "Done!"
