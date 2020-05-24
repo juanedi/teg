@@ -13,9 +13,56 @@ where
 import qualified Text.Casing as Casing
 
 data Country
-  = Argentina
-  | Rusia
+  = Alaska
+  | Arabia
+  | Aral
+  | Argentina
+  | Australia
+  | Borneo
+  | Brasil
+  | California
+  | Canada
+  | Chile
+  | China
+  | Colombia
+  | Egypt
+  | Ethiopia
+  | France
+  | Germany
+  | Gobi
+  | GreatBritain
+  | Greenland
+  | Iceland
+  | India
+  | Iran
+  | Israel
+  | Italy
+  | Japan
+  | Java
   | Kamchatka
+  | Labrador
+  | Madagascar
+  | Malasya
+  | Mexico
+  | Mongolia
+  | NewYork
+  | Oregon
+  | Peru
+  | Poland
+  | Russia
+  | Sahara
+  | SouthAfrica
+  | Spain
+  | Sumatra
+  | Sweden
+  | Syberia
+  | Tartary
+  | Taymir
+  | Terranova
+  | Turkey
+  | Uruguay
+  | Yukon
+  | Zaire
 
 data State = State
   { lastClickedCountry :: Maybe Country,

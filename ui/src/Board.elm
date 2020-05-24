@@ -1,6 +1,6 @@
 module Board exposing (view)
 
-import Country exposing (Country)
+import Api exposing (Country)
 import Css exposing (fill, hex, property)
 import Css.Global exposing (class, id, selector)
 import Html exposing (Html)
@@ -43,7 +43,7 @@ attributes :
 attributes { onCountryClicked, onCountryMouseEnter, onCountryMouseLeave } =
     let
         countryEventDecoder =
-            Decode.field "detail" Country.decoder
+            Decode.field "detail" Api.jsonDecCountry
     in
     List.concat
         [ onCountryClicked
@@ -93,13 +93,20 @@ staticStyles =
 highlightedCountryStyles : Country -> List Css.Global.Snippet
 highlightedCountryStyles country =
     let
+        svgId =
+            -- yes this is a hack :-)
+            country
+                |> Api.jsonEncCountry
+                |> Encode.encode 0
+                |> String.dropLeft 1
+
         styles =
             [ property "fill-opacity" "100% !important"
             , property "stroke-width" "1px"
             ]
     in
     [ -- matches paths and polygons
-      selector ("#" ++ Country.svgId country ++ ":empty") styles
+      selector ("#" ++ svgId ++ ":empty") styles
     , -- matches groups (needed for countries that consist of more than one element)
-      selector ("g#" ++ Country.svgId country ++ " *") styles
+      selector ("g#" ++ svgId ++ " *") styles
     ]
