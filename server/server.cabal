@@ -18,6 +18,8 @@ library
   exposed-modules:     Lib
   build-depends:       base >= 4.7 && < 5
                      , aeson
+                     , elm-bridge
+                     , servant-elm
                      , servant-server
                      , wai
                      , wai-logger
