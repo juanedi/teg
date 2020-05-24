@@ -1,6 +1,13 @@
 module Main where
 
-import Lib
+import qualified Lib
+import qualified System.Environment
+import qualified System.Exit
 
 main :: IO ()
-main = startApp
+main = do
+  args <- System.Environment.getArgs
+  case args of
+    ["--server"]  -> Lib.runServer
+    ["--codegen"] -> Lib.runCodeGen
+    _             -> System.Exit.die "Invalid arguments!"
