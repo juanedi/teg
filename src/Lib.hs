@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeOperators   #-}
 module Lib
     ( runServer
-    , runCodeGen
+    , runCodegen
     , app
     ) where
 
@@ -46,8 +46,8 @@ runServer = do
     putStrLn ("Starting the application at port " ++ show port)
     runSettings settings app
 
-runCodeGen :: IO ()
-runCodeGen = do
+runCodegen :: IO ()
+runCodegen = do
   putStrLn "Generating Elm code from API"
   generateElmModuleWith
     defElmOptions
@@ -69,6 +69,6 @@ api :: Proxy API
 api = Proxy
 
 server :: Server API
-server = serveDirectoryWebApp "frontend/_build"
+server = serveDirectoryWebApp "ui/_build"
     :<|> return (Book "The Bible")
-    :<|> serveDirectoryFileServer "frontend/static"
+    :<|> serveDirectoryFileServer "ui/static"
