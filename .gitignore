@@ -1,5 +1,6 @@
-node_modules
-elm-stuff
-_build
-
 .stack-work
+
+ui/node_modules
+ui/elm-stuff
+ui/generated
+ui/_build

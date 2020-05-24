@@ -16,22 +16,16 @@ import Servant
 import Servant.Elm (DefineElm (DefineElm), Proxy (Proxy), defElmImports, defElmOptions, generateElmModuleWith)
 import System.Environment (lookupEnv)
 
-data Book = Book
-    { name :: String
-    }
-
 data Country
   = Argentina
+  | Rusia
   | Kamchatka
 
-deriveBoth defaultOptions ''Book
 deriveBoth defaultOptions ''Country
 
-type API' = "books" :> Get '[JSON] Book
-       :<|> "countries" :> Get '[JSON] Country
+type API' = "countries" :> Get '[JSON] Country
 
 type API = "_build" :> Raw
-      :<|> "books" :> Get '[JSON] Book
       :<|> Raw
 
 runServer :: IO ()
@@ -51,13 +45,10 @@ runCodegen = do
   putStrLn "Generating Elm code from API"
   generateElmModuleWith
     defElmOptions
-    [ "Generated"
-    , "MyApi"
-    ]
+    [ "Teg" , "Api"]
     defElmImports
-    "my-elm-dir"
-    [ DefineElm (Proxy :: Proxy Book)
-    , DefineElm (Proxy :: Proxy Country)
+    "ui/generated"
+    [ DefineElm (Proxy :: Proxy Country)
     ]
     (Proxy :: Proxy API')
   putStrLn "Done!"
@@ -70,5 +61,4 @@ api = Proxy
 
 server :: Server API
 server = serveDirectoryWebApp "ui/_build"
-    :<|> return (Book "The Bible")
     :<|> serveDirectoryFileServer "ui/static"
