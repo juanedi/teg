@@ -7,8 +7,9 @@ module Lib
     , app
     ) where
 
-import Elm.Derive (defaultOptions, deriveBoth)
 import Data.Maybe (fromMaybe)
+import Elm.Derive (defaultOptions, deriveBoth)
+import Game
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (withStdoutLogger)
@@ -16,16 +17,10 @@ import Servant
 import Servant.Elm (DefineElm (DefineElm), Proxy (Proxy), defElmImports, defElmOptions, generateElmModuleWith)
 import System.Environment (lookupEnv)
 
-data Country
-  = Argentina
-  | Rusia
-  | Kamchatka
+type APIRoutes = "countries" :> Get '[JSON] [Country]
 
-deriveBoth defaultOptions ''Country
-
-type API' = "countries" :> Get '[JSON] Country
-
-type API = "_build" :> Raw
+type Routes = APIRoutes
+      :<|> "_build" :> Raw
       :<|> Raw
 
 runServer :: IO ()
@@ -40,6 +35,17 @@ runServer = do
     putStrLn ("Starting the application at port " ++ show port)
     runSettings settings app
 
+app :: Application
+app = serve api server
+
+api :: Proxy Routes
+api = Proxy
+
+server :: Server Routes
+server = return []
+    :<|> serveDirectoryWebApp "ui/_build"
+    :<|> serveDirectoryFileServer "ui/static"
+
 runCodegen :: IO ()
 runCodegen = do
   putStrLn "Generating Elm code from API"
@@ -50,15 +56,5 @@ runCodegen = do
     "ui/generated"
     [ DefineElm (Proxy :: Proxy Country)
     ]
-    (Proxy :: Proxy API')
+    (Proxy :: Proxy APIRoutes)
   putStrLn "Done!"
-
-app :: Application
-app = serve api server
-
-api :: Proxy API
-api = Proxy
-
-server :: Server API
-server = serveDirectoryWebApp "ui/_build"
-    :<|> serveDirectoryFileServer "ui/static"
