@@ -1,8 +1,8 @@
 module Main exposing (main)
 
+import Api exposing (Country)
 import Board
 import Browser
-import Country exposing (Country)
 import Css
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
