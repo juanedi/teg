@@ -1,14 +1,16 @@
-{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Lib
-    ( runServer
-    , runCodegen
-    , app
-    ) where
+  ( runServer,
+    runCodegen,
+    app,
+  )
+where
 
 import Data.Maybe (fromMaybe)
-import Elm.Derive (defaultOptions, deriveBoth, constructorTagModifier)
+import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import qualified Game
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -21,9 +23,10 @@ import System.Process (cwd, proc)
 
 type APIRoutes = "game" :> Get '[JSON] Game.State
 
-type Routes = APIRoutes
-      :<|> "_build" :> Raw
-      :<|> Raw
+type Routes =
+  APIRoutes
+    :<|> "_build" :> Raw
+    :<|> Raw
 
 runServer :: IO ()
 runServer = do
@@ -31,9 +34,9 @@ runServer = do
   let port = fromMaybe 8080 (fmap read maybePort)
   withStdoutLogger $ \logger -> do
     let settings =
-          setPort port $
-          setLogger logger $
-          defaultSettings
+          setPort port
+            $ setLogger logger
+            $ defaultSettings
     putStrLn ("Starting the application at port " ++ show port)
     runSettings settings app
 
@@ -44,29 +47,29 @@ api :: Proxy Routes
 api = Proxy
 
 server :: Server Routes
-server = return Game.new
+server =
+  return Game.new
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
-deriveBoth defaultOptions { constructorTagModifier = Game.tagToApiLabel } ''Game.Country
+deriveBoth defaultOptions {constructorTagModifier = Game.tagToApiLabel} ''Game.Country
 deriveBoth defaultOptions ''Game.State
 
 runCodegen :: IO ()
 runCodegen =
-  let
-    outputDir = "./ui/generated"
-  in do
-    putStrLn "Deleting old generated code..."
-    putStrLn "Generating Elm code from API..."
-    generateElmModuleWith
-      defElmOptions
-      ["Api"]
-      defElmImports
-      outputDir
-      [ DefineElm (Proxy :: Proxy Game.State)
-      , DefineElm (Proxy :: Proxy Game.Country)
-      ]
-      (Proxy :: Proxy APIRoutes)
-    putStrLn "Formatting generated code using elm-format..."
-    System.Process.createProcess (proc "elm-format" ["Api.elm", "--yes"]){ cwd = Just outputDir }
-    putStrLn "Done!"
+  let outputDir = "./ui/generated"
+   in do
+        putStrLn "Deleting old generated code..."
+        putStrLn "Generating Elm code from API..."
+        generateElmModuleWith
+          defElmOptions
+          ["Api"]
+          defElmImports
+          outputDir
+          [ DefineElm (Proxy :: Proxy Game.State),
+            DefineElm (Proxy :: Proxy Game.Country)
+          ]
+          (Proxy :: Proxy APIRoutes)
+        putStrLn "Formatting generated code using elm-format..."
+        System.Process.createProcess (proc "elm-format" ["Api.elm", "--yes"]) {cwd = Just outputDir}
+        putStrLn "Done!"
