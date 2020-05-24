@@ -19,6 +19,7 @@ library
                        Game
   build-depends:       base >= 4.7 && < 5
                      , aeson
+                     , casing
                      , elm-bridge
                      , process
                      , servant-elm

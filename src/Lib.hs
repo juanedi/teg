@@ -8,7 +8,7 @@ module Lib
     ) where
 
 import Data.Maybe (fromMaybe)
-import Elm.Derive (defaultOptions, deriveBoth)
+import Elm.Derive (defaultOptions, deriveBoth, constructorTagModifier)
 import qualified Game
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -47,6 +47,9 @@ server :: Server Routes
 server = return Game.new
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
+
+deriveBoth defaultOptions { constructorTagModifier = Game.tagToApiLabel } ''Game.Country
+deriveBoth defaultOptions ''Game.State
 
 runCodegen :: IO ()
 runCodegen =
