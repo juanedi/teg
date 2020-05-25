@@ -46,7 +46,7 @@ init { boardSvgPath } =
       , hoveredCountry = Nothing
       , gameState = GameState.Loading
       }
-    , Api.getGame
+    , Api.getState
         (\result ->
             case result of
                 Err _ ->

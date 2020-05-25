@@ -15,9 +15,10 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Codegen,
-                       Server,
-                       Game
+  exposed-modules:     Codegen
+                     , Server
+                     , Server.State
+                     , Game
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , casing
@@ -26,6 +27,7 @@ library
                      , process
                      , servant-elm
                      , servant-server
+                     , stm
                      , wai
                      , wai-logger
                      , warp
