@@ -5,11 +5,13 @@
 module Game
   ( State,
     Country,
-    new,
+    Game.init,
     tagToApiLabel,
   )
 where
 
+import Data.Set (Set)
+import qualified Data.Set as Set
 import qualified Text.Casing as Casing
 
 data Country
@@ -63,17 +65,16 @@ data Country
   | Uruguay
   | Yukon
   | Zaire
+  deriving (Eq, Ord)
 
 data State = State
-  { lastClickedCountry :: Maybe Country,
-    hoveredCountry :: Maybe Country
+  { paintedCountries :: Set Country
   }
 
-new :: State
-new =
+init :: State
+init =
   State
-    { lastClickedCountry = Just Argentina,
-      hoveredCountry = Nothing
+    { paintedCountries = Set.empty
     }
 
 tagToApiLabel :: String -> String

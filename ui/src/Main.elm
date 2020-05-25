@@ -1,9 +1,11 @@
 module Main exposing (main)
 
+import Api
 import Board
 import Browser
 import Country exposing (Country)
 import Css
+import GameState exposing (GameState)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
 
@@ -15,13 +17,15 @@ type alias Flags =
 
 type alias Model =
     { boardSvgPath : String
-    , lastClickedCountry : Maybe Country
     , hoveredCountry : Maybe Country
+    , gameState : GameState
     }
 
 
 type Msg
-    = Clicked Country
+    = NewServerState GameState.ServerState
+    | ErrorFetchingState
+    | Clicked Country
     | MouseEntered Country
     | MouseLeft Country
 
@@ -39,32 +43,35 @@ main =
 init : Flags -> ( Model, Cmd Msg )
 init { boardSvgPath } =
     ( { boardSvgPath = boardSvgPath
-      , lastClickedCountry = Nothing
       , hoveredCountry = Nothing
+      , gameState = GameState.Loading
       }
-    , Cmd.none
+    , Api.getGame
+        (\result ->
+            case result of
+                Err _ ->
+                    ErrorFetchingState
+
+                Ok serverState ->
+                    NewServerState serverState
+        )
     )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Clicked country ->
-            ( { model
-                | lastClickedCountry =
-                    case model.lastClickedCountry of
-                        Nothing ->
-                            Just country
-
-                        Just clickedCountry ->
-                            if clickedCountry == country then
-                                Nothing
-
-                            else
-                                Just country
-              }
+        NewServerState serverState ->
+            ( { model | gameState = GameState.Loaded serverState }
             , Cmd.none
             )
+
+        ErrorFetchingState ->
+            -- TODO: handle error
+            ( model, Cmd.none )
+
+        Clicked country ->
+            ( model, Cmd.none )
 
         MouseEntered country ->
             ( { model | hoveredCountry = Just country }
@@ -107,9 +114,16 @@ view model =
             , onCountryMouseEnter = Just MouseEntered
             , onCountryMouseLeave = Just MouseLeft
             , highlightedCoutries =
-                List.filterMap identity
-                    [ model.lastClickedCountry
-                    , model.hoveredCountry
+                List.concat
+                    [ model.hoveredCountry
+                        |> Maybe.map List.singleton
+                        |> Maybe.withDefault []
+                    , case model.gameState of
+                        GameState.Loading ->
+                            []
+
+                        GameState.Loaded { paintedCountries } ->
+                            paintedCountries
                     ]
             , styles =
                 [ Css.height (Css.pct 100)
