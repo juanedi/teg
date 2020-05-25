@@ -6,6 +6,7 @@ module Game
   ( State,
     Country,
     Game.init,
+    paintCountry,
     tagToApiLabel,
   )
 where
@@ -75,6 +76,12 @@ init :: State
 init =
   State
     { paintedCountries = Set.empty
+    }
+
+paintCountry :: Country -> State -> State
+paintCountry country state =
+  State
+    { paintedCountries = Set.insert country (paintedCountries state)
     }
 
 tagToApiLabel :: String -> String

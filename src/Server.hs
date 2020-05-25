@@ -10,27 +10,30 @@ where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
-import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
+import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth, deriveElmDef)
 import qualified Game
+import Game (Country)
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (withStdoutLogger)
 import Servant
+import Servant.Server (hoistServer)
 import Server.State (State)
 import qualified Server.State as State
 import System.Environment (lookupEnv)
 
-type APIRoutes = "state" :> Get '[JSON] Game.State
-
--- :<|> "paint" :> ReqBody '[JSON] Country :> Post '[POST] Bool
-
-deriveBoth defaultOptions {constructorTagModifier = Game.tagToApiLabel} ''Game.Country
-deriveBoth defaultOptions ''Game.State
+type APIRoutes =
+  "state" :> Get '[JSON] Game.State
+    :<|> "paint" :> ReqBody '[JSON] Country :> Post '[JSON] Game.State
 
 type Routes =
   APIRoutes
     :<|> "_build" :> Raw
     :<|> Raw
+
+deriveBoth defaultOptions {constructorTagModifier = Game.tagToApiLabel} ''Game.Country
+deriveBoth defaultOptions ''Game.State
+deriveElmDef defaultOptions ''Bool
 
 run :: IO ()
 run = do
@@ -53,11 +56,16 @@ api = Proxy
 
 server :: State -> Server Routes
 server serverState =
-  getState serverState
+  ( getState serverState
+      :<|> paintCountry serverState
+  )
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
 getState :: State -> Handler Game.State
-getState serverState = do
-  gameState <- liftIO (State.read serverState)
-  return gameState
+getState serverState =
+  liftIO (State.read serverState)
+
+paintCountry :: State -> Country -> Handler Game.State
+paintCountry serverState country =
+  liftIO (State.update (Game.paintCountry country) serverState)

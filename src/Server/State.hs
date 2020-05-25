@@ -20,6 +20,7 @@ read :: State -> IO (Game.State)
 read state =
   TVar.readTVarIO state
 
-update :: (Game.State -> Game.State) -> State -> IO ()
-update fn state =
+update :: (Game.State -> Game.State) -> State -> IO (Game.State)
+update fn state = do
   STM.atomically (TVar.modifyTVar state fn)
+  Server.State.read state

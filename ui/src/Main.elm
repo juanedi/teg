@@ -8,6 +8,7 @@ import Css
 import GameState exposing (GameState)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
+import Http
 
 
 type alias Flags =
@@ -23,8 +24,7 @@ type alias Model =
 
 
 type Msg
-    = NewServerState GameState.ServerState
-    | ErrorFetchingState
+    = ServerStateResponse (Result Http.Error GameState.ServerState)
     | Clicked Country
     | MouseEntered Country
     | MouseLeft Country
@@ -46,32 +46,28 @@ init { boardSvgPath } =
       , hoveredCountry = Nothing
       , gameState = GameState.Loading
       }
-    , Api.getState
-        (\result ->
-            case result of
-                Err _ ->
-                    ErrorFetchingState
-
-                Ok serverState ->
-                    NewServerState serverState
-        )
+    , Api.getState ServerStateResponse
     )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NewServerState serverState ->
-            ( { model | gameState = GameState.Loaded serverState }
-            , Cmd.none
-            )
+        ServerStateResponse result ->
+            case result of
+                Ok serverState ->
+                    ( { model | gameState = GameState.Loaded serverState }
+                    , Cmd.none
+                    )
 
-        ErrorFetchingState ->
-            -- TODO: handle error
-            ( model, Cmd.none )
+                Err _ ->
+                    -- TODO: handle error
+                    ( model, Cmd.none )
 
         Clicked country ->
-            ( model, Cmd.none )
+            ( model
+            , Api.postPaint country ServerStateResponse
+            )
 
         MouseEntered country ->
             ( { model | hoveredCountry = Just country }
