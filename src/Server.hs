@@ -47,6 +47,6 @@ api = Proxy
 
 server :: Server Routes
 server =
-  return Game.new
+  return Game.init
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
