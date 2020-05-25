@@ -9,6 +9,7 @@ import GameState exposing (GameState)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
 import Http
+import Time
 
 
 type alias Flags =
@@ -25,6 +26,7 @@ type alias Model =
 
 type Msg
     = ServerStateResponse (Result Http.Error GameState.ServerState)
+    | PollServerState
     | Clicked Country
     | MouseEntered Country
     | MouseLeft Country
@@ -36,7 +38,7 @@ main =
         { init = init
         , view = view >> Html.toUnstyled
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = \_ -> Time.every 500 (\_ -> PollServerState)
         }
 
 
@@ -46,7 +48,7 @@ init { boardSvgPath } =
       , hoveredCountry = Nothing
       , gameState = GameState.Loading
       }
-    , Api.getState ServerStateResponse
+    , Cmd.none
     )
 
 
@@ -63,6 +65,11 @@ update msg model =
                 Err _ ->
                     -- TODO: handle error
                     ( model, Cmd.none )
+
+        PollServerState ->
+            ( model
+            , Api.getState ServerStateResponse
+            )
 
         Clicked country ->
             ( model
