@@ -101,7 +101,7 @@ view model =
             , Css.position Css.fixed
             , Css.top Css.zero
             , Css.left Css.zero
-            , Css.backgroundColor (Css.hex "#c5d1d1")
+            , Css.backgroundColor (Css.hex "#e9f0f0")
             ]
         ]
         [ Board.view
