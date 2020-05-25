@@ -62,30 +62,41 @@ staticStyles : List Css.Global.Snippet
 staticStyles =
     [ id "inner_border"
         [ fill (hex "#beddeb")
+        , property "stroke" "#beddeb"
+        , property "stroke-width" "2px"
+        , property "fill-opacity" "20%"
         ]
     , id "continents"
         [ Css.pointerEventsAll
         ]
     , selector "#continents *"
-        [ property "fill-opacity" "60%"
+        [ property "fill-opacity" "40%"
+        , property "stroke-width" "1px"
+        , fill (hex "#FFFFFF")
         ]
     , selector "#continents > #north_america * "
-        [ fill (hex "#ca9782")
+        [ property "stroke" "#ca9782"
+        , fill (hex "#ca9782")
         ]
     , selector "#continents > #south_america *"
-        [ fill (hex "#848585")
+        [ property "stroke" "#848585"
+        , fill (hex "#848585")
         ]
     , selector "#continents > #asia *"
-        [ fill (hex "#868485")
+        [ property "stroke" "#868485"
+        , fill (hex "#868485")
         ]
     , selector "#continents > #oceania *"
-        [ fill (hex "#7badc7")
+        [ property "stroke" "#7badc7"
+        , fill (hex "#7badc7")
         ]
     , selector "#continents > #europe *"
-        [ fill (hex "#b2a7b4")
+        [ property "stroke" "#b2a7b4"
+        , fill (hex "#b2a7b4")
         ]
     , selector "#continents > #africa *"
-        [ fill (hex "#ab8c78")
+        [ property "stroke" "#ab8c78"
+        , fill (hex "#ab8c78")
         ]
     ]
 
@@ -94,7 +105,7 @@ highlightedCountryStyles : Country -> List Css.Global.Snippet
 highlightedCountryStyles country =
     let
         styles =
-            [ property "fill-opacity" "100% !important"
+            [ property "fill-opacity" "80%"
             , property "stroke-width" "1px"
             ]
     in
