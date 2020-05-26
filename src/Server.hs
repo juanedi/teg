@@ -10,30 +10,24 @@ where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
-import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth, deriveElmDef)
 import qualified Game
-import Game (Country)
+import Game (Country, Player)
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (withStdoutLogger)
 import Servant
-import Servant.Server (hoistServer)
 import Server.State (State)
 import qualified Server.State as State
 import System.Environment (lookupEnv)
 
 type APIRoutes =
   "state" :> Get '[JSON] Game.State
-    :<|> "paint" :> ReqBody '[JSON] Country :> Post '[JSON] Game.State
+    :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.State
 
 type Routes =
   APIRoutes
     :<|> "_build" :> Raw
     :<|> Raw
-
-deriveBoth defaultOptions {constructorTagModifier = Game.tagToApiLabel} ''Game.Country
-deriveBoth defaultOptions ''Game.State
-deriveElmDef defaultOptions ''Bool
 
 run :: IO ()
 run = do
@@ -66,6 +60,6 @@ getState :: State -> Handler Game.State
 getState serverState =
   liftIO (State.read serverState)
 
-paintCountry :: State -> Country -> Handler Game.State
-paintCountry serverState country =
-  liftIO (State.update (Game.paintCountry country) serverState)
+paintCountry :: State -> (Player, Country) -> Handler Game.State
+paintCountry serverState (player, country) =
+  liftIO (State.update (Game.paintCountry player country) serverState)

@@ -17,8 +17,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     Codegen
                      , Server
+  other-modules:       Game
+                     , Server.Serialization
                      , Server.State
-                     , Game
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , casing
@@ -28,6 +29,7 @@ library
                      , servant-elm
                      , servant-server
                      , stm
+                     , text
                      , wai
                      , wai-logger
                      , warp
