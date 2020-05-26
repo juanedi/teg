@@ -5,15 +5,35 @@
 module Game
   ( State,
     Country,
+    Player (..),
     Game.init,
     paintCountry,
-    tagToApiLabel,
   )
 where
 
-import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Text.Casing as Casing
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
+import qualified Server.Serialization as Serialization
+
+data State = State
+  { turn :: Player,
+    -- NOTE: servant-elm generates buggy decoders for maps
+    paintedCountries :: [(Country, Player)]
+  }
+
+data Player
+  = Red
+  | Blue
+  deriving (Eq)
+
+nextPlayer :: Player -> Player
+nextPlayer player =
+  case player of
+    Red -> Blue
+    Blue -> Red
 
 data Country
   = Alaska
@@ -66,24 +86,26 @@ data Country
   | Uruguay
   | Yukon
   | Zaire
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show, Read)
 
-data State = State
-  { paintedCountries :: Set Country
-  }
+deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''Country
+deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''Player
+deriveBoth defaultOptions ''State
 
 init :: State
 init =
   State
-    { paintedCountries = Set.empty
+    { turn = Red,
+      paintedCountries = []
     }
 
-paintCountry :: Country -> State -> State
-paintCountry country state =
-  State
-    { paintedCountries = Set.insert country (paintedCountries state)
-    }
-
-tagToApiLabel :: String -> String
-tagToApiLabel constructorTag =
-  Casing.toQuietSnake (Casing.fromHumps constructorTag)
+paintCountry :: Player -> Country -> State -> State
+paintCountry player country state =
+  if player == turn state
+    then
+      State
+        { turn = nextPlayer (turn state),
+          paintedCountries = Map.toList (Map.insert country player (Map.fromList (paintedCountries state)))
+        }
+    else-- TODO: signal error
+      state

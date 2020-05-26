@@ -23,7 +23,7 @@ run =
           outputDir
           [ DefineElm (Proxy :: Proxy Game.State),
             DefineElm (Proxy :: Proxy Game.Country),
-            DefineElm (Proxy :: Proxy Bool)
+            DefineElm (Proxy :: Proxy Game.Player)
           ]
           (Proxy :: Proxy APIRoutes)
         putStrLn "Formatting generated code using elm-format..."

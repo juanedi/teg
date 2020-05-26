@@ -38,7 +38,7 @@ main =
         { init = init
         , view = view >> Html.toUnstyled
         , update = update
-        , subscriptions = \_ -> Time.every 500 (\_ -> PollServerState)
+        , subscriptions = \_ -> Time.every 5000 (\_ -> PollServerState)
         }
 
 
@@ -73,7 +73,7 @@ update msg model =
 
         Clicked country ->
             ( model
-            , Api.postPaint country ServerStateResponse
+            , Api.postPaint ( Api.Red, country ) ServerStateResponse
             )
 
         MouseEntered country ->
@@ -127,6 +127,7 @@ view model =
 
                         GameState.Loaded { paintedCountries } ->
                             paintedCountries
+                                |> List.map Tuple.first
                     ]
             , styles =
                 [ Css.height (Css.pct 100)
