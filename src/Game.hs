@@ -18,11 +18,14 @@ import qualified Data.Text as Text
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import qualified Server.Serialization as Serialization
 
-data State = State
-  { turn :: Player,
-    -- NOTE: servant-elm generates buggy decoders for maps
-    paintedCountries :: [(Country, Player)]
-  }
+data State
+  = WaitingForRed
+  | WaitingForBlue
+  | Started
+      { turn :: Player,
+        -- NOTE: servant-elm generates buggy decoders for maps
+        paintedCountries :: [(Country, Player)]
+      }
 
 data Player
   = Red
@@ -94,18 +97,28 @@ deriveBoth defaultOptions ''State
 
 init :: State
 init =
-  State
-    { turn = Red,
-      paintedCountries = []
-    }
+  WaitingForRed
+
+-- State
+--   { turn = Red,
+--     paintedCountries = []
+--   }
 
 paintCountry :: Player -> Country -> State -> State
 paintCountry player country state =
-  if player == turn state
-    then
-      State
-        { turn = nextPlayer (turn state),
-          paintedCountries = Map.toList (Map.insert country player (Map.fromList (paintedCountries state)))
-        }
-    else-- TODO: signal error
+  case state of
+    WaitingForRed ->
+      -- TODO: signal error
       state
+    WaitingForBlue ->
+      -- TODO: signal error
+      state
+    Started _ _ ->
+      if player == turn state
+        then
+          Started
+            { turn = nextPlayer (turn state),
+              paintedCountries = Map.toList (Map.insert country player (Map.fromList (paintedCountries state)))
+            }
+        else-- TODO: signal error
+          state
