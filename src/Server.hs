@@ -85,7 +85,9 @@ paintCountry serverState (player, country) =
     ( State.update_
         ( \gameState ->
             let updatedGameState = Game.paintCountry player country gameState
-             in (Game.playerState player updatedGameState, gameState)
+             in ( Game.playerState player updatedGameState,
+                  updatedGameState
+                )
         )
         serverState
     )
