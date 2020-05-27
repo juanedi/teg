@@ -18,6 +18,7 @@ library
   exposed-modules:     Codegen
                      , Server
   other-modules:       Game
+                     , Game.Country
                      , Server.Serialization
                      , Server.State
   build-depends:       base >= 4.7 && < 5
