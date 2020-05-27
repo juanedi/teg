@@ -19,7 +19,8 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
-import Game.Country (Country)
+import Game.Country (Country (..))
+import Game.Player (Player (..))
 import qualified Server.Serialization as Serialization
 
 data State
@@ -31,18 +32,6 @@ data State
         paintedCountries :: [(Country, Player)]
       }
 
-data Player
-  = Red
-  | Blue
-  deriving (Eq)
-
-otherPlayer :: Player -> Player
-otherPlayer player =
-  case player of
-    Red -> Blue
-    Blue -> Red
-
-deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''Player
 deriveBoth defaultOptions ''State
 
 init :: State
@@ -87,3 +76,9 @@ paintCountry player country state =
             }
         else-- TODO: signal error
           state
+
+otherPlayer :: Player -> Player
+otherPlayer player =
+  case player of
+    Red -> Blue
+    Blue -> Red
