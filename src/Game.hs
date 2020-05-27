@@ -6,9 +6,8 @@ module Game
     Instructions,
     Game.init,
     join,
-    otherPlayer,
-    playerState,
     paintCountry,
+    playerState,
   )
 where
 
