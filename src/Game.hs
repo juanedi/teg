@@ -7,6 +7,9 @@ module Game
     Country,
     Player (..),
     Game.init,
+    join,
+    blockedOn,
+    otherPlayer,
     paintCountry,
   )
 where
@@ -32,8 +35,8 @@ data Player
   | Blue
   deriving (Eq)
 
-nextPlayer :: Player -> Player
-nextPlayer player =
+otherPlayer :: Player -> Player
+otherPlayer player =
   case player of
     Red -> Blue
     Blue -> Red
@@ -99,10 +102,25 @@ init :: State
 init =
   WaitingForRed
 
--- State
---   { turn = Red,
---     paintedCountries = []
---   }
+join :: State -> State
+join state =
+  case state of
+    WaitingForRed -> WaitingForBlue
+    WaitingForBlue ->
+      Started
+        { turn = Red,
+          paintedCountries = []
+        }
+    Started _ _ ->
+      -- TODO: signal error
+      state
+
+blockedOn :: State -> Player
+blockedOn state =
+  case state of
+    WaitingForRed -> Red
+    WaitingForBlue -> Blue
+    Started _ _ -> turn state
 
 paintCountry :: Player -> Country -> State -> State
 paintCountry player country state =
@@ -117,7 +135,7 @@ paintCountry player country state =
       if player == turn state
         then
           Started
-            { turn = nextPlayer (turn state),
+            { turn = otherPlayer (turn state),
               paintedCountries = Map.toList (Map.insert country player (Map.fromList (paintedCountries state)))
             }
         else-- TODO: signal error

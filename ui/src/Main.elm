@@ -25,7 +25,8 @@ type alias Model =
 
 
 type Msg
-    = ServerStateResponse (Result Http.Error GameState.ServerState)
+    = JoinResponse (Result Http.Error Api.JoinInfo)
+    | ServerStateResponse (Result Http.Error GameState.ServerState)
     | PollServerState
     | Clicked Country
     | MouseEntered Country
@@ -38,7 +39,7 @@ main =
         { init = init
         , view = view >> Html.toUnstyled
         , update = update
-        , subscriptions = \_ -> Time.every 5000 (\_ -> PollServerState)
+        , subscriptions = \_ -> Time.every 1000 (\_ -> PollServerState)
         }
 
 
@@ -48,19 +49,36 @@ init { boardSvgPath } =
       , hoveredCountry = Nothing
       , gameState = GameState.Loading
       }
-    , Cmd.none
+    , Api.postJoin JoinResponse
     )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        JoinResponse result ->
+            case result of
+                Ok { player, state } ->
+                    ( { model | gameState = GameState.Loaded ( player, state ) }
+                    , Cmd.none
+                    )
+
+                Err _ ->
+                    -- TODO: handle error
+                    ( model, Cmd.none )
+
         ServerStateResponse result ->
             case result of
                 Ok serverState ->
-                    ( { model | gameState = GameState.Loaded serverState }
-                    , Cmd.none
-                    )
+                    case model.gameState of
+                        GameState.Loading ->
+                            -- TODO: should not happen
+                            ( model, Cmd.none )
+
+                        GameState.Loaded ( player, _ ) ->
+                            ( { model | gameState = GameState.Loaded ( player, serverState ) }
+                            , Cmd.none
+                            )
 
                 Err _ ->
                     -- TODO: handle error
@@ -72,9 +90,14 @@ update msg model =
             )
 
         Clicked country ->
-            ( model
-            , Api.postPaint ( Api.Red, country ) ServerStateResponse
-            )
+            case model.gameState of
+                GameState.Loading ->
+                    ( model, Cmd.none )
+
+                GameState.Loaded ( player, _ ) ->
+                    ( model
+                    , Api.postPaint ( player, country ) ServerStateResponse
+                    )
 
         MouseEntered country ->
             ( { model | hoveredCountry = Just country }
@@ -125,9 +148,12 @@ view model =
                         GameState.Loading ->
                             []
 
-                        GameState.Loaded { paintedCountries } ->
+                        GameState.Loaded ( _, Api.Started { paintedCountries } ) ->
                             paintedCountries
                                 |> List.map Tuple.first
+
+                        GameState.Loaded _ ->
+                            []
                     ]
             , styles =
                 [ Css.height (Css.pct 100)

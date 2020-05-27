@@ -7,6 +7,7 @@ module Codegen (run) where
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import qualified Game
 import Servant.Elm (DefineElm (DefineElm), Proxy (Proxy), defElmImports, defElmOptions, generateElmModuleWith)
+import qualified Server
 import Server (APIRoutes)
 import System.Process (createProcess, cwd, proc)
 
@@ -23,7 +24,8 @@ run =
           outputDir
           [ DefineElm (Proxy :: Proxy Game.State),
             DefineElm (Proxy :: Proxy Game.Country),
-            DefineElm (Proxy :: Proxy Game.Player)
+            DefineElm (Proxy :: Proxy Game.Player),
+            DefineElm (Proxy :: Proxy Server.JoinInfo)
           ]
           (Proxy :: Proxy APIRoutes)
         putStrLn "Formatting generated code using elm-format..."

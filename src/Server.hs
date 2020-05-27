@@ -5,11 +5,13 @@
 module Server
   ( Server.run,
     APIRoutes,
+    JoinInfo,
   )
 where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
+import Elm.Derive (defaultOptions, deriveBoth)
 import qualified Game
 import Game (Country, Player)
 import Network.Wai
@@ -21,8 +23,16 @@ import qualified Server.State as State
 import System.Environment (lookupEnv)
 
 type APIRoutes =
-  "state" :> Get '[JSON] Game.State
+  "join" :> Post '[JSON] JoinInfo
+    :<|> "state" :> Get '[JSON] Game.State
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.State
+
+data JoinInfo = JoinInfo
+  { player :: Game.Player,
+    state :: Game.State
+  }
+
+deriveBoth defaultOptions ''JoinInfo
 
 type Routes =
   APIRoutes
@@ -50,11 +60,22 @@ api = Proxy
 
 server :: State -> Server Routes
 server serverState =
-  ( getState serverState
+  ( join serverState
+      :<|> getState serverState
       :<|> paintCountry serverState
   )
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
+
+join :: State -> Handler JoinInfo
+join serverState = do
+  newGameState <- liftIO (State.update Game.join serverState)
+  return
+    ( JoinInfo
+        { player = Game.otherPlayer (Game.blockedOn newGameState),
+          state = newGameState
+        }
+    )
 
 getState :: State -> Handler Game.State
 getState serverState =
