@@ -6,7 +6,6 @@ module Game
     Instructions,
     Game.init,
     join,
-    blockedOn,
     otherPlayer,
     playerState,
     paintCountry,
@@ -75,13 +74,6 @@ playerState player state =
               then PaintCountry
               else Wait
         }
-
-blockedOn :: State -> Player
-blockedOn state =
-  case state of
-    WaitingForRed -> Red
-    WaitingForBlue -> Blue
-    Started _ _ -> turn state
 
 paintCountry :: Player -> Country -> State -> State
 paintCountry player country state =
