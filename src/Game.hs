@@ -1,15 +1,14 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeOperators #-}
-
 module Game
   ( State,
     Country,
     Player (..),
+    LocalState,
+    Instructions,
     Game.init,
     join,
     blockedOn,
     otherPlayer,
+    playerState,
     paintCountry,
   )
 where
@@ -18,8 +17,9 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import Game.Country (Country (..))
+import Game.LocalState (Instructions (..), LocalState (LocalState))
+import qualified Game.LocalState as LocalState
 import Game.Player (Player (..))
 import qualified Server.Serialization as Serialization
 
@@ -32,24 +32,49 @@ data State
         paintedCountries :: [(Country, Player)]
       }
 
-deriveBoth defaultOptions ''State
-
 init :: State
 init =
   WaitingForRed
 
-join :: State -> State
+join :: State -> (Player, State)
 join state =
   case state of
-    WaitingForRed -> WaitingForBlue
+    WaitingForRed -> (Red, WaitingForBlue)
     WaitingForBlue ->
-      Started
-        { turn = Red,
-          paintedCountries = []
-        }
+      ( Blue,
+        Started
+          { turn = Red,
+            paintedCountries = []
+          }
+      )
     Started _ _ ->
       -- TODO: signal error
-      state
+      (Red, WaitingForBlue)
+
+playerState :: Player -> State -> LocalState
+playerState player state =
+  case state of
+    WaitingForRed ->
+      LocalState
+        { LocalState.identity = player,
+          LocalState.paintedCountries = paintedCountries state,
+          LocalState.instructions = Wait
+        }
+    WaitingForBlue ->
+      LocalState
+        { LocalState.identity = player,
+          LocalState.paintedCountries = paintedCountries state,
+          LocalState.instructions = Wait
+        }
+    Started _ _ ->
+      LocalState
+        { LocalState.identity = player,
+          LocalState.paintedCountries = paintedCountries state,
+          LocalState.instructions =
+            if turn state == player
+              then PaintCountry
+              else Wait
+        }
 
 blockedOn :: State -> Player
 blockedOn state =

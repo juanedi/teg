@@ -5,13 +5,11 @@
 module Server
   ( Server.run,
     APIRoutes,
-    JoinInfo,
   )
 where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
-import Elm.Derive (defaultOptions, deriveBoth)
 import qualified Game
 import Game (Country, Player)
 import Network.Wai
@@ -23,16 +21,9 @@ import qualified Server.State as State
 import System.Environment (lookupEnv)
 
 type APIRoutes =
-  "join" :> Post '[JSON] JoinInfo
-    :<|> "state" :> Get '[JSON] Game.State
-    :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.State
-
-data JoinInfo = JoinInfo
-  { player :: Game.Player,
-    state :: Game.State
-  }
-
-deriveBoth defaultOptions ''JoinInfo
+  "join" :> Post '[JSON] Game.LocalState
+    :<|> "state" :> ReqBody '[JSON] Player :> Get '[JSON] Game.LocalState
+    :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.LocalState
 
 type Routes =
   APIRoutes
@@ -67,20 +58,34 @@ server serverState =
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
-join :: State -> Handler JoinInfo
-join serverState = do
-  newGameState <- liftIO (State.update Game.join serverState)
-  return
-    ( JoinInfo
-        { player = Game.otherPlayer (Game.blockedOn newGameState),
-          state = newGameState
-        }
+join :: State -> Handler Game.LocalState
+join serverState =
+  liftIO
+    ( State.update_
+        ( \gameState ->
+            let (player, updatedGameState) = Game.join gameState
+             in (Game.playerState player updatedGameState, gameState)
+        )
+        serverState
     )
 
-getState :: State -> Handler Game.State
-getState serverState =
-  liftIO (State.read serverState)
+getState :: State -> Player -> Handler Game.LocalState
+getState serverState player =
+  liftIO
+    ( State.update_
+        ( \gameState ->
+            (Game.playerState player gameState, gameState)
+        )
+        serverState
+    )
 
-paintCountry :: State -> (Player, Country) -> Handler Game.State
+paintCountry :: State -> (Player, Country) -> Handler Game.LocalState
 paintCountry serverState (player, country) =
-  liftIO (State.update (Game.paintCountry player country) serverState)
+  liftIO
+    ( State.update_
+        ( \gameState ->
+            let updatedGameState = Game.paintCountry player country gameState
+             in (Game.playerState player updatedGameState, gameState)
+        )
+        serverState
+    )
