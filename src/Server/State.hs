@@ -1,8 +1,7 @@
 module Server.State
   ( State,
     Server.State.init,
-    Server.State.read,
-    update,
+    update_,
   )
 where
 
@@ -16,11 +15,6 @@ type State = TVar Game.State
 init :: IO (State)
 init = TVar.newTVarIO (Game.init)
 
-read :: State -> IO (Game.State)
-read state =
-  TVar.readTVarIO state
-
-update :: (Game.State -> Game.State) -> State -> IO (Game.State)
-update fn state = do
-  STM.atomically (TVar.modifyTVar state fn)
-  Server.State.read state
+update_ :: (Game.State -> (a, Game.State)) -> State -> IO a
+update_ fn state = do
+  STM.atomically (STM.stateTVar state fn)

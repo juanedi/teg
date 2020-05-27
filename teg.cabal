@@ -19,6 +19,7 @@ library
                      , Server
   other-modules:       Game
                      , Game.Country
+                     , Game.LocalState
                      , Game.Player
                      , Server.Serialization
                      , Server.State

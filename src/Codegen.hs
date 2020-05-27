@@ -22,10 +22,10 @@ run =
           ["Api"]
           defElmImports
           outputDir
-          [ DefineElm (Proxy :: Proxy Game.State),
-            DefineElm (Proxy :: Proxy Game.Country),
-            DefineElm (Proxy :: Proxy Game.Player),
-            DefineElm (Proxy :: Proxy Server.JoinInfo)
+          [ DefineElm (Proxy :: Proxy Game.Country),
+            DefineElm (Proxy :: Proxy Game.LocalState),
+            DefineElm (Proxy :: Proxy Game.Instructions),
+            DefineElm (Proxy :: Proxy Game.Player)
           ]
           (Proxy :: Proxy APIRoutes)
         putStrLn "Formatting generated code using elm-format..."
