@@ -56,13 +56,13 @@ playerState player state =
     WaitingForRed ->
       LocalState
         { LocalState.identity = player,
-          LocalState.paintedCountries = paintedCountries state,
+          LocalState.paintedCountries = [],
           LocalState.instructions = Wait
         }
     WaitingForBlue ->
       LocalState
         { LocalState.identity = player,
-          LocalState.paintedCountries = paintedCountries state,
+          LocalState.paintedCountries = [],
           LocalState.instructions = Wait
         }
     Started _ _ ->
