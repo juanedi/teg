@@ -32,10 +32,11 @@ type APIRoutes =
     :<|> "state" :> Capture "player" Text :> Get '[JSON] Game.LocalState
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.LocalState
 
-type Routes =
-  APIRoutes
-    :<|> "_build" :> Raw
+type StaticContentRoutes =
+  "_build" :> Raw
     :<|> Raw
+
+type Routes = APIRoutes :<|> StaticContentRoutes
 
 {- Represents a pure computation that depends on the current state.
 
@@ -65,21 +66,25 @@ run = do
     runSettings settings (app serverState)
 
 app :: TVar Game.State -> Application
-app serverState = serve api (server (runAction serverState))
+app serverState =
+  serve api $
+    gameApiServer (runAction serverState) :<|> staticContentServer
 
 api :: Proxy Routes
 api = Proxy
 
-server :: (forall a. Action a -> Handler a) -> Server Routes
-server runAction =
-  ( runAction join
-      :<|> ( \playerId -> do
-               player <- parsePlayerFromUrl playerId
-               runAction (getState player)
-           )
-      :<|> runAction . paintCountry
-  )
-    :<|> serveDirectoryWebApp "ui/_build"
+gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
+gameApiServer runAction =
+  runAction join
+    :<|> ( \playerId -> do
+             player <- parsePlayerFromUrl playerId
+             runAction (getState player)
+         )
+    :<|> runAction . paintCountry
+
+staticContentServer :: Server StaticContentRoutes
+staticContentServer =
+  serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
 join :: Action Game.LocalState
