@@ -50,7 +50,10 @@ type Action a = Game.State -> Result a
    It can signal an error or emit a value, and allows to modify the resulting
    state regardless of whether we got an error or not.
 -}
-type Result a = (Either Game.Error a, Game.State)
+data Result a = Result
+  { response :: Either Game.Error a,
+    newState :: Game.State
+  }
 
 run :: IO ()
 run = do
@@ -91,19 +94,22 @@ join :: Action Game.LocalState
 join state =
   case Game.join state of
     Left err ->
-      ( Left err,
-        state
-      )
-    Right (localState, updatedState) ->
-      ( Right localState,
-        updatedState
-      )
+      Result
+        { response = Left err,
+          newState = state
+        }
+    Right (localState, state') ->
+      Result
+        { response = Right localState,
+          newState = state'
+        }
 
 getState :: Player -> Action Game.LocalState
 getState player state =
-  ( Right (Game.playerState player state),
-    state
-  )
+  Result
+    { response = Right (Game.playerState player state),
+      newState = state
+    }
 
 parsePlayerFromUrl :: Text -> Handler Player
 parsePlayerFromUrl playerId =
@@ -114,11 +120,16 @@ parsePlayerFromUrl playerId =
 paintCountry :: (Player, Country) -> Action Game.LocalState
 paintCountry (player, country) state =
   case Game.paintCountry player country state of
-    Left err -> (Left err, state)
-    Right updatedState ->
-      ( Right (Game.playerState player updatedState),
-        updatedState
-      )
+    Left err ->
+      Result
+        { response = Left err,
+          newState = state
+        }
+    Right state' ->
+      Result
+        { response = Right (Game.playerState player state'),
+          newState = state'
+        }
 
 handleError :: Game.Error -> Handler a
 handleError gameError =
@@ -134,7 +145,14 @@ encodeErrorMsg msg =
 
 runAction :: TVar Game.State -> Action a -> Handler a
 runAction stateVar fn = do
-  result <- liftIO (STM.atomically (STM.stateTVar stateVar fn))
-  case result of
+  response_ <-
+    runStateVar
+      ( \state ->
+          let result = fn state
+           in (response result, newState result)
+      )
+  case response_ of
     Left err -> handleError err
     Right value -> pure value
+  where
+    runStateVar = liftIO . STM.atomically . (STM.stateTVar stateVar)
