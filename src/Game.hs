@@ -1,7 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Game
   ( State,
     Country,
     Player (..),
+    Error (..),
     LocalState,
     Instructions,
     Game.init,
@@ -30,24 +33,35 @@ data State
         paintedCountries :: [(Country, Player)]
       }
 
+data Error
+  = InvalidMove Text
+  | InternalError Text
+
 init :: State
 init =
   WaitingForRed
 
-join :: State -> (Player, State)
+join :: State -> Either Error (LocalState, State)
 join state =
   case state of
-    WaitingForRed -> (Red, WaitingForBlue)
+    WaitingForRed ->
+      let newState = WaitingForBlue
+       in Right
+            ( playerState Red newState,
+              newState
+            )
     WaitingForBlue ->
-      ( Blue,
-        Started
-          { turn = Red,
-            paintedCountries = []
-          }
-      )
+      let newState =
+            Started
+              { turn = Red,
+                paintedCountries = []
+              }
+       in Right
+            ( playerState Blue newState,
+              newState
+            )
     Started _ _ ->
-      -- TODO: signal error
-      (Red, WaitingForBlue)
+      Left (InvalidMove "Trying to join a game that has already started")
 
 playerState :: Player -> State -> LocalState
 playerState player state =
@@ -74,24 +88,23 @@ playerState player state =
               else Wait
         }
 
-paintCountry :: Player -> Country -> State -> State
+paintCountry :: Player -> Country -> State -> Either Error State
 paintCountry player country state =
   case state of
     WaitingForRed ->
-      -- TODO: signal error
-      state
+      Left (InvalidMove "Trying to paint a country on a game that hasn't started yet")
     WaitingForBlue ->
-      -- TODO: signal error
-      state
+      Left (InvalidMove "Trying to paint a country on a game that hasn't started yet")
     Started _ _ ->
       if player == turn state
         then
-          Started
-            { turn = otherPlayer (turn state),
-              paintedCountries = Map.toList (Map.insert country player (Map.fromList (paintedCountries state)))
-            }
+          Right $
+            Started
+              { turn = otherPlayer (turn state),
+                paintedCountries = Map.toList (Map.insert country player (Map.fromList (paintedCountries state)))
+              }
         else-- TODO: signal error
-          state
+          Left (InvalidMove "Trying to make a move outside of the user's turn")
 
 otherPlayer :: Player -> Player
 otherPlayer player =
