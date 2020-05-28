@@ -75,9 +75,7 @@ join serverState =
 
 getState :: State -> Text -> Handler Game.LocalState
 getState serverState playerId = do
-  player <- case parseUrlPiece playerId of
-    Right player -> pure player
-    Left err -> throwError (err400 {errBody = encodeUtf8 (Data.Text.Lazy.fromStrict err)})
+  player <- parsePlayerFromUrl playerId
   liftIO
     ( State.update_
         ( \gameState ->
@@ -85,6 +83,12 @@ getState serverState playerId = do
         )
         serverState
     )
+
+parsePlayerFromUrl :: Text -> Handler Player
+parsePlayerFromUrl playerId =
+  case parseUrlPiece playerId of
+    Right player -> pure player
+    Left err -> throwError (err400 {errBody = encodeUtf8 (Data.Text.Lazy.fromStrict err)})
 
 paintCountry :: State -> (Player, Country) -> Handler Game.LocalState
 paintCountry serverState (player, country) =
