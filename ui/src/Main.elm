@@ -9,6 +9,7 @@ import GameState exposing (GameState)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
 import Http
+import Player exposing (Player)
 import Time
 
 
@@ -73,7 +74,7 @@ update msg model =
 
                 GameState.Loaded { identity } ->
                     ( model
-                    , Api.getState identity ServerStateResponse
+                    , Api.getStateByPlayer (Player.toRequestParam identity) ServerStateResponse
                     )
 
         Clicked country ->

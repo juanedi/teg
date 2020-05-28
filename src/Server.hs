@@ -10,6 +10,9 @@ where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import qualified Data.Text.Lazy
+import Data.Text.Lazy.Encoding (encodeUtf8)
 import qualified Game
 import Game (Country, Player)
 import Network.Wai
@@ -22,7 +25,8 @@ import System.Environment (lookupEnv)
 
 type APIRoutes =
   "join" :> Post '[JSON] Game.LocalState
-    :<|> "state" :> ReqBody '[JSON] Player :> Get '[JSON] Game.LocalState
+    -- NOTE: servant-elm forces us to send a string here and parse manually
+    :<|> "state" :> Capture "player" Text :> Get '[JSON] Game.LocalState
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.LocalState
 
 type Routes =
@@ -69,8 +73,11 @@ join serverState =
         serverState
     )
 
-getState :: State -> Player -> Handler Game.LocalState
-getState serverState player =
+getState :: State -> Text -> Handler Game.LocalState
+getState serverState playerId = do
+  player <- case parseUrlPiece playerId of
+    Right player -> pure player
+    Left err -> throwError (err400 {errBody = encodeUtf8 (Data.Text.Lazy.fromStrict err)})
   liftIO
     ( State.update_
         ( \gameState ->
