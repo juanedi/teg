@@ -82,7 +82,7 @@ server runAction =
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
-join :: Game.State -> Result Game.LocalState
+join :: Action Game.LocalState
 join state =
   case Game.join state of
     Left err ->
@@ -94,7 +94,7 @@ join state =
         updatedState
       )
 
-getState :: Player -> Game.State -> Result Game.LocalState
+getState :: Player -> Action Game.LocalState
 getState player state =
   ( Right (Game.playerState player state),
     state
@@ -106,7 +106,7 @@ parsePlayerFromUrl playerId =
     Right player -> pure player
     Left err -> throwError (err400 {errBody = encodeErrorMsg err})
 
-paintCountry :: (Player, Country) -> Game.State -> Result Game.LocalState
+paintCountry :: (Player, Country) -> Action Game.LocalState
 paintCountry (player, country) state =
   case Game.paintCountry player country state of
     Left err -> (Left err, state)
