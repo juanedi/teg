@@ -103,8 +103,7 @@ paintCountry player country state =
               { turn = otherPlayer (turn state),
                 paintedCountries = Map.toList (Map.insert country player (Map.fromList (paintedCountries state)))
               }
-        else-- TODO: signal error
-          Left (InvalidMove "Trying to make a move outside of the user's turn")
+        else Left (InvalidMove "Trying to make a move outside of the user's turn")
 
 otherPlayer :: Player -> Player
 otherPlayer player =
