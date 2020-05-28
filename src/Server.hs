@@ -24,8 +24,6 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (withStdoutLogger)
 import Servant
-import Server.State (State)
-import qualified Server.State as State
 import System.Environment (lookupEnv)
 
 type APIRoutes =
@@ -39,25 +37,25 @@ type Routes =
     :<|> "_build" :> Raw
     :<|> Raw
 
-{- Represents a pure computation that depends on the current state
+{- Represents a pure computation that depends on the current state.
 
    It can return a modify state and signal an error, but doesn't allow to
    perform IO.
 -}
-type Action a = State -> Result a
+type Action a = Game.State -> Result a
 
-{- The result of a pure computation.
+{- The result of a computation over a game.
 
    It can signal an error or emit a value, and allows to modify the resulting
    state regardless of whether we got an error or not.
 -}
-type Result a = (Either Game.Error a, State)
+type Result a = (Either Game.Error a, Game.State)
 
 run :: IO ()
 run = do
   maybePort <- lookupEnv "PORT"
   let port = fromMaybe 8080 (fmap read maybePort)
-  serverState <- TVar.newTVarIO State.init
+  serverState <- TVar.newTVarIO Game.init
   withStdoutLogger $ \logger -> do
     let settings =
           setPort port
@@ -66,7 +64,7 @@ run = do
     putStrLn ("Starting the application at port " ++ show port)
     runSettings settings (app serverState)
 
-app :: TVar State -> Application
+app :: TVar Game.State -> Application
 app serverState = serve api (server (runAction serverState))
 
 api :: Proxy Routes
@@ -84,24 +82,23 @@ server runAction =
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
-join :: State -> Result Game.LocalState
+join :: Game.State -> Result Game.LocalState
 join state =
-  case Game.join (State.gameState state) of
+  case Game.join state of
     Left err ->
       ( Left err,
         state
       )
-    Right (localState, updatedGameState) ->
+    Right (localState, updatedState) ->
       ( Right localState,
-        state {State.gameState = updatedGameState}
+        updatedState
       )
 
-getState :: Player -> State -> Result Game.LocalState
+getState :: Player -> Game.State -> Result Game.LocalState
 getState player state =
-  let gameState = State.gameState state
-   in ( Right (Game.playerState player (State.gameState state)),
-        state
-      )
+  ( Right (Game.playerState player state),
+    state
+  )
 
 parsePlayerFromUrl :: Text -> Handler Player
 parsePlayerFromUrl playerId =
@@ -109,15 +106,14 @@ parsePlayerFromUrl playerId =
     Right player -> pure player
     Left err -> throwError (err400 {errBody = encodeErrorMsg err})
 
-paintCountry :: (Player, Country) -> State -> Result Game.LocalState
+paintCountry :: (Player, Country) -> Game.State -> Result Game.LocalState
 paintCountry (player, country) state =
-  let gameState = State.gameState state
-   in case Game.paintCountry player country gameState of
-        Left err -> (Left err, state)
-        Right updatedGameState ->
-          ( Right (Game.playerState player updatedGameState),
-            state {State.gameState = updatedGameState}
-          )
+  case Game.paintCountry player country state of
+    Left err -> (Left err, state)
+    Right updatedState ->
+      ( Right (Game.playerState player updatedState),
+        updatedState
+      )
 
 handleError :: Game.Error -> Handler a
 handleError gameError =
@@ -131,7 +127,7 @@ encodeErrorMsg :: Text -> Data.ByteString.Lazy.ByteString
 encodeErrorMsg msg =
   encodeUtf8 (Data.Text.Lazy.fromStrict msg)
 
-runAction :: TVar State -> Action a -> Handler a
+runAction :: TVar Game.State -> Action a -> Handler a
 runAction stateVar fn = do
   result <- liftIO (STM.atomically (STM.stateTVar stateVar fn))
   case result of
