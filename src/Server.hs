@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -38,6 +39,20 @@ type Routes =
     :<|> "_build" :> Raw
     :<|> Raw
 
+{- Represents a pure computation that depends on the current state
+
+   It can return a modify state and signal an error, but doesn't allow to
+   perform IO.
+-}
+type Action a = State -> Result a
+
+{- The result of a pure computation.
+
+   It can signal an error or emit a value, and allows to modify the resulting
+   state regardless of whether we got an error or not.
+-}
+type Result a = (Either Game.Error a, State)
+
 run :: IO ()
 run = do
   maybePort <- lookupEnv "PORT"
@@ -52,41 +67,41 @@ run = do
     runSettings settings (app serverState)
 
 app :: TVar State -> Application
-app serverState = serve api (server serverState)
+app serverState = serve api (server (runAction serverState))
 
 api :: Proxy Routes
 api = Proxy
 
-server :: TVar State -> Server Routes
-server serverState =
-  ( join serverState
-      :<|> getState serverState
-      :<|> paintCountry serverState
+server :: (forall a. Action a -> Handler a) -> Server Routes
+server runAction =
+  ( runAction join
+      :<|> ( \playerId -> do
+               player <- parsePlayerFromUrl playerId
+               runAction (getState player)
+           )
+      :<|> runAction . paintCountry
   )
     :<|> serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
-join :: TVar State -> Handler Game.LocalState
-join stateVar =
-  withState stateVar $ \state ->
-    case Game.join (State.gameState state) of
-      Left err ->
-        ( Left err,
-          state
-        )
-      Right (localState, updatedGameState) ->
-        ( Right localState,
-          state {State.gameState = updatedGameState}
-        )
+join :: State -> Result Game.LocalState
+join state =
+  case Game.join (State.gameState state) of
+    Left err ->
+      ( Left err,
+        state
+      )
+    Right (localState, updatedGameState) ->
+      ( Right localState,
+        state {State.gameState = updatedGameState}
+      )
 
-getState :: TVar State -> Text -> Handler Game.LocalState
-getState stateVar playerId = do
-  player <- parsePlayerFromUrl playerId
-  withState stateVar $ \state ->
-    let gameState = State.gameState state
-     in ( Right (Game.playerState player (State.gameState state)),
-          state
-        )
+getState :: Player -> State -> Result Game.LocalState
+getState player state =
+  let gameState = State.gameState state
+   in ( Right (Game.playerState player (State.gameState state)),
+        state
+      )
 
 parsePlayerFromUrl :: Text -> Handler Player
 parsePlayerFromUrl playerId =
@@ -94,16 +109,15 @@ parsePlayerFromUrl playerId =
     Right player -> pure player
     Left err -> throwError (err400 {errBody = encodeErrorMsg err})
 
-paintCountry :: TVar State -> (Player, Country) -> Handler Game.LocalState
-paintCountry stateVar (player, country) =
-  withState stateVar $ \state ->
-    let gameState = State.gameState state
-     in case Game.paintCountry player country gameState of
-          Left err -> (Left err, state)
-          Right updatedGameState ->
-            ( Right (Game.playerState player updatedGameState),
-              state {State.gameState = updatedGameState}
-            )
+paintCountry :: (Player, Country) -> State -> Result Game.LocalState
+paintCountry (player, country) state =
+  let gameState = State.gameState state
+   in case Game.paintCountry player country gameState of
+        Left err -> (Left err, state)
+        Right updatedGameState ->
+          ( Right (Game.playerState player updatedGameState),
+            state {State.gameState = updatedGameState}
+          )
 
 handleError :: Game.Error -> Handler a
 handleError gameError =
@@ -117,11 +131,8 @@ encodeErrorMsg :: Text -> Data.ByteString.Lazy.ByteString
 encodeErrorMsg msg =
   encodeUtf8 (Data.Text.Lazy.fromStrict msg)
 
-withState ::
-  TVar State ->
-  (State -> (Either Game.Error a, State)) ->
-  Handler a
-withState stateVar fn = do
+runAction :: TVar State -> Action a -> Handler a
+runAction stateVar fn = do
   result <- liftIO (STM.atomically (STM.stateTVar stateVar fn))
   case result of
     Left err -> handleError err
