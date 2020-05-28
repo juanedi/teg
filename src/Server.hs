@@ -68,7 +68,7 @@ join serverState =
     ( State.update_
         ( \gameState ->
             let (player, updatedGameState) = Game.join gameState
-             in (Game.playerState player updatedGameState, gameState)
+             in (Game.playerState player updatedGameState, updatedGameState)
         )
         serverState
     )
