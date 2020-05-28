@@ -28,7 +28,9 @@ library
                      , casing
                      , containers
                      , elm-bridge
+                     , http-api-data
                      , process
+                     , servant
                      , servant-elm
                      , servant-server
                      , stm
