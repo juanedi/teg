@@ -26,6 +26,7 @@ library
                      , aeson
                      , bytestring
                      , casing
+                     , conduit
                      , containers
                      , elm-bridge
                      , http-api-data
@@ -33,6 +34,7 @@ library
                      , servant
                      , servant-elm
                      , servant-server
+                     , servant-websockets
                      , stm
                      , text
                      , wai
