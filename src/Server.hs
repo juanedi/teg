@@ -108,8 +108,13 @@ webSocketServer broadcastChannel = webSocketHandler
   where
     webSocketHandler :: MonadIO m => Player -> ConduitT () Game.LocalState m ()
     webSocketHandler player = do
-      gameState <- liftIO $ STM.atomically (TChan.readTChan broadcastChannel)
+      playerChannel <- liftIO . STM.atomically (TChan.dupTChan broadcastChannel)
+      notifyPlayer playerChannel player
+    notifyPlayer :: MonadIO m => TChan Game.State -> Player -> ConduitT () Game.LocalState m ()
+    notifyPlayer playerChannel player = do
+      gameState <- liftIO $ STM.atomically (TChan.readTChan playerChannel)
       yield $ Game.playerState player gameState
+      notifyPlayer playerChannel player
 
 staticContentServer :: Server StaticContentRoutes
 staticContentServer =
@@ -170,15 +175,18 @@ encodeErrorMsg msg =
   encodeUtf8 (Data.Text.Lazy.fromStrict msg)
 
 runAction :: State -> Action a -> Handler a
-runAction state action = do
-  response_ <-
-    runStateVar
-      ( \gameState ->
-          let result = action gameState
-           in (response result, newState result)
-      )
-  case response_ of
-    Left err -> handleError err
-    Right value -> pure value
-  where
-    runStateVar = liftIO . STM.atomically . (STM.stateTVar (State.gameState state))
+runAction state action =
+  let gameStateVar = State.gameState state
+      broadcastChannel = State.broadcastChannel state
+   in do
+        result <-
+          liftIO . STM.atomically $
+            do
+              gameState <- TVar.readTVar gameStateVar
+              let result = action gameState
+              TVar.writeTVar gameStateVar (newState result)
+              TChan.writeTChan broadcastChannel (newState result)
+              pure result
+        case response result of
+          Left err -> handleError err
+          Right value -> pure value
