@@ -4,13 +4,19 @@ document.addEventListener('DOMContentLoaded', (event) => {
     flags: { boardSvgPath: "/map.svg" }
   });
 
-  window.updatesSocket = new WebSocket("ws://localhost:5000/socket/red");
+  app.ports.initSocket.subscribe(function(player) {
+    console.log("Initializing websocket for player", player)
 
-  updatesSocket.onopen = function (event) {
-    console.log("connection open! waiting for local state.")
-  };
+    window.updatesSocket = new WebSocket(`ws://localhost:5000/socket/${player}`);
 
-  updatesSocket.onmessage = function (event) {
-    console.log("got a message!", event.data);
-  }
+    updatesSocket.onopen = function (event) {
+      console.log("Connection to websocket succeeded!")
+    };
+
+    updatesSocket.onmessage = function (event) {
+      let newState = JSON.parse(event.data)
+      console.log("Got a message!", newState)
+      app.ports.stateUpdates.send(newState)
+    }
+  });
 })

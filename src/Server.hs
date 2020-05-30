@@ -9,10 +9,10 @@ module Server
   )
 where
 
+import Control.Concurrent.STM (STM)
 import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TChan (TChan)
-import qualified Control.Concurrent.STM.TChan as TChan
-import qualified Control.Concurrent.STM.TVar as TVar
+import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChanIO, readTChan, writeTChan)
+import Control.Concurrent.STM.TVar (newTVarIO, readTVar, writeTVar)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString.Lazy
 import Data.Conduit (ConduitT)
@@ -68,8 +68,8 @@ run :: IO ()
 run = do
   maybePort <- lookupEnv "PORT"
   let port = fromMaybe 8080 (fmap read maybePort)
-  gameState <- TVar.newTVarIO Game.init
-  broadcastChannel <- TChan.newBroadcastTChanIO
+  gameState <- newTVarIO Game.init
+  broadcastChannel <- newBroadcastTChanIO
   let state =
         State.State
           { State.gameState = gameState,
@@ -108,11 +108,11 @@ webSocketServer broadcastChannel = webSocketHandler
   where
     webSocketHandler :: MonadIO m => Player -> ConduitT () Game.LocalState m ()
     webSocketHandler player = do
-      playerChannel <- liftIO . STM.atomically (TChan.dupTChan broadcastChannel)
+      playerChannel <- runSTM (dupTChan broadcastChannel)
       notifyPlayer playerChannel player
     notifyPlayer :: MonadIO m => TChan Game.State -> Player -> ConduitT () Game.LocalState m ()
     notifyPlayer playerChannel player = do
-      gameState <- liftIO $ STM.atomically (TChan.readTChan playerChannel)
+      gameState <- runSTM (readTChan playerChannel)
       yield $ Game.playerState player gameState
       notifyPlayer playerChannel player
 
@@ -180,13 +180,16 @@ runAction state action =
       broadcastChannel = State.broadcastChannel state
    in do
         result <-
-          liftIO . STM.atomically $
+          runSTM $
             do
-              gameState <- TVar.readTVar gameStateVar
+              gameState <- readTVar gameStateVar
               let result = action gameState
-              TVar.writeTVar gameStateVar (newState result)
-              TChan.writeTChan broadcastChannel (newState result)
+              writeTVar gameStateVar (newState result)
+              writeTChan broadcastChannel (newState result)
               pure result
         case response result of
           Left err -> handleError err
           Right value -> pure value
+
+runSTM :: MonadIO m => STM a -> m a
+runSTM = liftIO . STM.atomically
