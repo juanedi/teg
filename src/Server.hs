@@ -10,7 +10,8 @@ module Server
 where
 
 import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TVar (TVar)
+import Control.Concurrent.STM.TChan (TChan)
+import qualified Control.Concurrent.STM.TChan as TChan
 import qualified Control.Concurrent.STM.TVar as TVar
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString.Lazy
@@ -27,6 +28,8 @@ import Network.Wai.Handler.Warp
 import Network.Wai.Logger (withStdoutLogger)
 import Servant
 import Servant.API.WebSocketConduit (WebSocketConduit)
+import Server.State (State)
+import qualified Server.State as State
 import System.Environment (lookupEnv)
 
 type APIRoutes =
@@ -65,20 +68,27 @@ run :: IO ()
 run = do
   maybePort <- lookupEnv "PORT"
   let port = fromMaybe 8080 (fmap read maybePort)
-  serverState <- TVar.newTVarIO Game.init
+  gameState <- TVar.newTVarIO Game.init
+  broadcastChannel <- TChan.newBroadcastTChanIO
+  let state =
+        State.State
+          { State.gameState = gameState,
+            State.broadcastChannel = broadcastChannel
+          }
   withStdoutLogger $ \logger -> do
     let settings =
           setPort port
             $ setLogger logger
             $ defaultSettings
     putStrLn ("Starting the application at port " ++ show port)
-    runSettings settings (app serverState)
+    runSettings settings (app state)
+  where
 
-app :: TVar Game.State -> Application
-app serverState =
+app :: State -> Application
+app state =
   serve api $
-    gameApiServer (runAction serverState)
-      :<|> webSocketServer serverState
+    gameApiServer (runAction state)
+      :<|> webSocketServer (State.broadcastChannel state)
       :<|> staticContentServer
 
 api :: Proxy Routes
@@ -93,12 +103,12 @@ gameApiServer runAction =
          )
     :<|> runAction . paintCountry
 
-webSocketServer :: TVar Game.State -> Server WebSocketRoutes
-webSocketServer serverState = webSocketHandler
+webSocketServer :: TChan Game.State -> Server WebSocketRoutes
+webSocketServer broadcastChannel = webSocketHandler
   where
     webSocketHandler :: MonadIO m => Player -> ConduitT () Game.LocalState m ()
     webSocketHandler player = do
-      gameState <- liftIO (STM.readTVarIO serverState)
+      gameState <- liftIO $ STM.atomically (TChan.readTChan broadcastChannel)
       yield $ Game.playerState player gameState
 
 staticContentServer :: Server StaticContentRoutes
@@ -159,16 +169,16 @@ encodeErrorMsg :: Text -> Data.ByteString.Lazy.ByteString
 encodeErrorMsg msg =
   encodeUtf8 (Data.Text.Lazy.fromStrict msg)
 
-runAction :: TVar Game.State -> Action a -> Handler a
-runAction stateVar fn = do
+runAction :: State -> Action a -> Handler a
+runAction state action = do
   response_ <-
     runStateVar
-      ( \state ->
-          let result = fn state
+      ( \gameState ->
+          let result = action gameState
            in (response result, newState result)
       )
   case response_ of
     Left err -> handleError err
     Right value -> pure value
   where
-    runStateVar = liftIO . STM.atomically . (STM.stateTVar stateVar)
+    runStateVar = liftIO . STM.atomically . (STM.stateTVar (State.gameState state))
