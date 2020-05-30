@@ -34,8 +34,6 @@ import System.Environment (lookupEnv)
 
 type APIRoutes =
   "join" :> Post '[JSON] Game.LocalState
-    -- NOTE: servant-elm forces us to send a string here and parse manually
-    :<|> "state" :> Capture "player" Text :> Get '[JSON] Game.LocalState
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.LocalState
 
 type WebSocketRoutes =
@@ -97,10 +95,6 @@ api = Proxy
 gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
 gameApiServer runAction =
   runAction join
-    :<|> ( \playerId -> do
-             player <- parsePlayerFromUrl playerId
-             runAction (getState player)
-         )
     :<|> runAction . paintCountry
 
 webSocketServer :: TChan Game.State -> Server WebSocketRoutes
@@ -134,19 +128,6 @@ join state =
         { response = Right localState,
           newState = state'
         }
-
-getState :: Player -> Action Game.LocalState
-getState player state =
-  Result
-    { response = Right (Game.playerState player state),
-      newState = state
-    }
-
-parsePlayerFromUrl :: Text -> Handler Player
-parsePlayerFromUrl playerId =
-  case parseUrlPiece playerId of
-    Right player -> pure player
-    Left err -> throwError (err400 {errBody = encodeErrorMsg err})
 
 paintCountry :: (Player, Country) -> Action Game.LocalState
 paintCountry (player, country) state =
