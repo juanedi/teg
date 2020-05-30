@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Api
 import Board
@@ -9,8 +9,15 @@ import GameState exposing (GameState)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
 import Http
+import Json.Decode as Decode
 import Player exposing (Player)
 import Time
+
+
+port initSocket : String -> Cmd msg
+
+
+port stateUpdates : (Decode.Value -> msg) -> Sub msg
 
 
 type alias Flags =
@@ -27,7 +34,7 @@ type alias Model =
 
 type Msg
     = ServerStateResponse (Result Http.Error Api.LocalState)
-    | PollServerState
+    | StateUpdate (Result String Api.LocalState)
     | Clicked Country
     | MouseEntered Country
     | MouseLeft Country
@@ -39,7 +46,7 @@ main =
         { init = init
         , view = view >> Html.toUnstyled
         , update = update
-        , subscriptions = \_ -> Time.every 1000 (\_ -> PollServerState)
+        , subscriptions = subscriptions
         }
 
 
@@ -60,22 +67,28 @@ update msg model =
             case result of
                 Ok localState ->
                     ( { model | gameState = GameState.Loaded localState }
-                    , Cmd.none
+                    , case model.gameState of
+                        GameState.Loading ->
+                            initSocket (Player.toRequestParam localState.identity)
+
+                        _ ->
+                            Cmd.none
                     )
 
                 Err _ ->
                     -- TODO: handle error
                     ( model, Cmd.none )
 
-        PollServerState ->
-            case model.gameState of
-                GameState.Loading ->
-                    ( model, Cmd.none )
-
-                GameState.Loaded { identity } ->
-                    ( model
-                    , Api.getStateByPlayer (Player.toRequestParam identity) ServerStateResponse
+        StateUpdate result ->
+            case result of
+                Ok localState ->
+                    ( { model | gameState = GameState.Loaded localState }
+                    , Cmd.none
                     )
+
+                Err _ ->
+                    -- TODO: handle error
+                    ( model, Cmd.none )
 
         Clicked country ->
             case model.gameState of
@@ -108,6 +121,17 @@ update msg model =
               }
             , Cmd.none
             )
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    stateUpdates
+        (\value ->
+            value
+                |> Decode.decodeValue Api.jsonDecLocalState
+                |> Result.mapError (\_ -> "Could not decode state sent by the websocket")
+                |> StateUpdate
+        )
 
 
 view : Model -> Html Msg
