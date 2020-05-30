@@ -4,10 +4,8 @@
 
 module Codegen (run) where
 
-import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import qualified Game
 import Servant.Elm (DefineElm (DefineElm), Proxy (Proxy), defElmImports, defElmOptions, generateElmModuleWith)
-import qualified Server
 import Server (APIRoutes)
 import System.Process (createProcess, cwd, proc)
 

@@ -10,10 +10,12 @@ module Server
 where
 
 import qualified Control.Concurrent.STM as STM
-import qualified Control.Concurrent.STM.TVar as TVar
 import Control.Concurrent.STM.TVar (TVar)
-import Control.Monad.IO.Class (liftIO)
+import qualified Control.Concurrent.STM.TVar as TVar
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString.Lazy
+import Data.Conduit (ConduitT)
+import Data.Conduit (yield)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text.Lazy
@@ -24,6 +26,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (withStdoutLogger)
 import Servant
+import Servant.API.WebSocketConduit (WebSocketConduit)
 import System.Environment (lookupEnv)
 
 type APIRoutes =
@@ -32,11 +35,14 @@ type APIRoutes =
     :<|> "state" :> Capture "player" Text :> Get '[JSON] Game.LocalState
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.LocalState
 
+type WebSocketRoutes =
+  "socket" :> Capture "player" Player :> WebSocketConduit () Game.LocalState
+
 type StaticContentRoutes =
   "_build" :> Raw
     :<|> Raw
 
-type Routes = APIRoutes :<|> StaticContentRoutes
+type Routes = APIRoutes :<|> WebSocketRoutes :<|> StaticContentRoutes
 
 {- Represents a pure computation that depends on the current state.
 
@@ -71,7 +77,9 @@ run = do
 app :: TVar Game.State -> Application
 app serverState =
   serve api $
-    gameApiServer (runAction serverState) :<|> staticContentServer
+    gameApiServer (runAction serverState)
+      :<|> webSocketServer serverState
+      :<|> staticContentServer
 
 api :: Proxy Routes
 api = Proxy
@@ -84,6 +92,14 @@ gameApiServer runAction =
              runAction (getState player)
          )
     :<|> runAction . paintCountry
+
+webSocketServer :: TVar Game.State -> Server WebSocketRoutes
+webSocketServer serverState = webSocketHandler
+  where
+    webSocketHandler :: MonadIO m => Player -> ConduitT () Game.LocalState m ()
+    webSocketHandler player = do
+      gameState <- liftIO (STM.readTVarIO serverState)
+      yield $ Game.playerState player gameState
 
 staticContentServer :: Server StaticContentRoutes
 staticContentServer =
