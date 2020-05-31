@@ -1,13 +1,14 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Server.WebSocket where
+module Server.WebSocket
+  ( Routes,
+    server,
+  )
+where
 
-import Control.Concurrent.STM (STM)
-import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TChan (TChan, dupTChan, readTChan)
-import Control.Concurrent.STM.TVar (readTVar)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Concurrent.STM.TChan (TChan, readTChan)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Conduit (ConduitT)
 import Data.Conduit (yield)
 import qualified Game
@@ -26,10 +27,10 @@ server state = socketHandler
     socketHandler :: MonadIO m => Player -> ConduitT () Game.LocalState m ()
     socketHandler player = do
       (currentGameState, playerChannel) <-
-        runSTM
+        State.runSTM
           ( do
-              chan <- dupTChan (State.broadcastChannel state)
-              gameState <- readTVar (State.gameState state)
+              chan <- State.playerUpdatesChannel state
+              gameState <- State.readGameState state
               pure (gameState, chan)
           )
       yield (Game.playerState player currentGameState)
@@ -37,9 +38,6 @@ server state = socketHandler
 
 notificationLoop :: MonadIO m => TChan Game.State -> Player -> ConduitT () Game.LocalState m ()
 notificationLoop playerChannel player = do
-  gameState <- runSTM (readTChan playerChannel)
+  gameState <- State.runSTM (readTChan playerChannel)
   yield $ Game.playerState player gameState
   notificationLoop playerChannel player
-
-runSTM :: MonadIO m => STM a -> m a
-runSTM = liftIO . STM.atomically
