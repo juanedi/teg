@@ -70,7 +70,7 @@ update msg model =
                     ( model
                     , case model.gameState of
                         GameState.Loading ->
-                            initSocket (Player.toRequestParam player)
+                            initSocket (Player.toUrlSegment player)
 
                         _ ->
                             Cmd.none
