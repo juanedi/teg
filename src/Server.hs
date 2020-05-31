@@ -11,12 +11,10 @@ where
 
 import Control.Concurrent.STM (STM)
 import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChanIO, readTChan, writeTChan)
+import Control.Concurrent.STM.TChan (newBroadcastTChanIO, writeTChan)
 import Control.Concurrent.STM.TVar (newTVarIO, readTVar, writeTVar)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString.Lazy
-import Data.Conduit (ConduitT)
-import Data.Conduit (yield)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text.Lazy
@@ -27,23 +25,20 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (withStdoutLogger)
 import Servant
-import Servant.API.WebSocketConduit (WebSocketConduit)
 import Server.State (State)
 import qualified Server.State as State
+import qualified Server.WebSocket as WebSocket
 import System.Environment (lookupEnv)
 
 type APIRoutes =
   "join" :> Post '[JSON] Player
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> PostNoContent '[JSON] ()
 
-type WebSocketRoutes =
-  "socket" :> Capture "player" Player :> WebSocketConduit () Game.LocalState
-
 type StaticContentRoutes =
   "_build" :> Raw
     :<|> Raw
 
-type Routes = APIRoutes :<|> WebSocketRoutes :<|> StaticContentRoutes
+type Routes = APIRoutes :<|> WebSocket.Routes :<|> StaticContentRoutes
 
 {- Represents a pure computation that depends on the current state.
 
@@ -86,7 +81,7 @@ app :: State -> Application
 app state =
   serve api $
     gameApiServer (runAction state)
-      :<|> webSocketServer state
+      :<|> WebSocket.server state
       :<|> staticContentServer
 
 api :: Proxy Routes
@@ -96,27 +91,6 @@ gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
 gameApiServer runAction =
   runAction join
     :<|> runAction . paintCountry
-
-webSocketServer :: State -> Server WebSocketRoutes
-webSocketServer state = webSocketHandler
-  where
-    webSocketHandler :: MonadIO m => Player -> ConduitT () Game.LocalState m ()
-    webSocketHandler player = do
-      (currentGameState, playerChannel) <-
-        runSTM
-          ( do
-              chan <- dupTChan (State.broadcastChannel state)
-              gameState <- readTVar (State.gameState state)
-              pure (gameState, chan)
-          )
-      yield (Game.playerState player currentGameState)
-      notificationLoop playerChannel player
-
-notificationLoop :: MonadIO m => TChan Game.State -> Player -> ConduitT () Game.LocalState m ()
-notificationLoop playerChannel player = do
-  gameState <- runSTM (readTChan playerChannel)
-  yield $ Game.playerState player gameState
-  notificationLoop playerChannel player
 
 staticContentServer :: Server StaticContentRoutes
 staticContentServer =

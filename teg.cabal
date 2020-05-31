@@ -24,6 +24,7 @@ library
                      , Game.Player
                      , Server.Serialization
                      , Server.State
+                     , Server.WebSocket
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , bytestring

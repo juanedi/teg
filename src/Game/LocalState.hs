@@ -4,7 +4,7 @@
 
 module Game.LocalState (LocalState (..), Instructions (..)) where
 
-import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
+import Elm.Derive (defaultOptions, deriveBoth)
 import Game.Country (Country)
 import Game.Player (Player)
 
