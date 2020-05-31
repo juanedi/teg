@@ -33,7 +33,7 @@ import qualified Server.State as State
 import System.Environment (lookupEnv)
 
 type APIRoutes =
-  "join" :> Post '[JSON] Game.LocalState
+  "join" :> Post '[JSON] Player
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> PostNoContent '[JSON] ()
 
 type WebSocketRoutes =
@@ -123,7 +123,7 @@ staticContentServer =
   serveDirectoryWebApp "ui/_build"
     :<|> serveDirectoryFileServer "ui/static"
 
-join :: Action Game.LocalState
+join :: Action Player
 join state =
   case Game.join state of
     Left err ->
@@ -131,9 +131,9 @@ join state =
         { response = Left err,
           newState = state
         }
-    Right (localState, state') ->
+    Right (player, state') ->
       Result
-        { response = Right localState,
+        { response = Right player,
           newState = state'
         }
 

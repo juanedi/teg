@@ -38,15 +38,13 @@ init :: State
 init =
   WaitingForRed
 
-join :: State -> Either Error (LocalState, State)
+join :: State -> Either Error (Player, State)
 join state =
   case state of
     WaitingForRed ->
       let newState = WaitingForBlue
        in Right
-            ( playerState Red newState,
-              newState
-            )
+            (Red, newState)
     WaitingForBlue ->
       let newState =
             Started
@@ -54,9 +52,7 @@ join state =
                 paintedCountries = []
               }
        in Right
-            ( playerState Blue newState,
-              newState
-            )
+            (Blue, newState)
     Started _ _ ->
       Left (InvalidMove "Trying to join a game that has already started")
 
