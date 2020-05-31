@@ -24,6 +24,8 @@ import Server.State (State)
 import qualified Server.State as State
 import qualified Server.WebSocket as WebSocket
 import System.Environment (lookupEnv)
+import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
+import WaiAppStatic.Types (ssUseHash)
 
 type APIRoutes =
   "join" :> Post '[JSON] Player
@@ -84,7 +86,7 @@ gameApiServer runAction =
 staticContentServer :: Server StaticContentRoutes
 staticContentServer =
   serveDirectoryWebApp "ui/_build"
-    :<|> serveDirectoryFileServer "ui/static"
+    :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
 
 join :: Action Player
 join state =
