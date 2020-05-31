@@ -1,6 +1,6 @@
 module Player exposing
     ( Player
-    , toRequestParam
+    , toUrlSegment
     )
 
 import Api
@@ -11,8 +11,8 @@ type alias Player =
     Api.Player
 
 
-toRequestParam : Player -> String
-toRequestParam player =
+toUrlSegment : Player -> String
+toUrlSegment player =
     player
         |> Api.jsonEncPlayer
         |> Encode.encode 0
