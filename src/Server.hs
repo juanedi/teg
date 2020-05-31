@@ -9,11 +9,6 @@ module Server
   )
 where
 
-import Control.Concurrent.STM (STM)
-import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TChan (newBroadcastTChanIO, writeTChan)
-import Control.Concurrent.STM.TVar (newTVarIO, readTVar, writeTVar)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString.Lazy
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -61,13 +56,7 @@ run :: IO ()
 run = do
   maybePort <- lookupEnv "PORT"
   let port = fromMaybe 8080 (fmap read maybePort)
-  gameState <- newTVarIO Game.init
-  broadcastChannel <- newBroadcastTChanIO
-  let state =
-        State.State
-          { State.gameState = gameState,
-            State.broadcastChannel = broadcastChannel
-          }
+  state <- State.init
   withStdoutLogger $ \logger -> do
     let settings =
           setPort port
@@ -138,21 +127,14 @@ encodeErrorMsg msg =
   encodeUtf8 (Data.Text.Lazy.fromStrict msg)
 
 runAction :: State -> Action a -> Handler a
-runAction state action =
-  let gameStateVar = State.gameState state
-      broadcastChannel = State.broadcastChannel state
-   in do
-        result <-
-          runSTM $
-            do
-              gameState <- readTVar gameStateVar
-              let result = action gameState
-              writeTVar gameStateVar (newState result)
-              writeTChan broadcastChannel (newState result)
-              pure result
-        case response result of
-          Left err -> handleError err
-          Right value -> pure value
-
-runSTM :: MonadIO m => STM a -> m a
-runSTM = liftIO . STM.atomically
+runAction state action = do
+  result <-
+    State.runSTM $
+      do
+        gameState <- State.readGameState state
+        let result = action gameState
+        State.updateGameState (newState result) state
+        pure result
+  case response result of
+    Left err -> handleError err
+    Right value -> pure value
