@@ -14,15 +14,12 @@ module Game
   )
 where
 
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Game.Country (Country (..))
 import Game.LocalState (Instructions (..), LocalState (LocalState))
 import qualified Game.LocalState as LocalState
 import Game.Player (Player (..))
-import qualified Server.Serialization as Serialization
 
 data State
   = WaitingForRed
