@@ -86,7 +86,7 @@ app :: State -> Application
 app state =
   serve api $
     gameApiServer (runAction state)
-      :<|> webSocketServer (State.broadcastChannel state)
+      :<|> webSocketServer state
       :<|> staticContentServer
 
 api :: Proxy Routes
@@ -97,18 +97,26 @@ gameApiServer runAction =
   runAction join
     :<|> runAction . paintCountry
 
-webSocketServer :: TChan Game.State -> Server WebSocketRoutes
-webSocketServer broadcastChannel = webSocketHandler
+webSocketServer :: State -> Server WebSocketRoutes
+webSocketServer state = webSocketHandler
   where
     webSocketHandler :: MonadIO m => Player -> ConduitT () Game.LocalState m ()
     webSocketHandler player = do
-      playerChannel <- runSTM (dupTChan broadcastChannel)
-      notifyPlayer playerChannel player
-    notifyPlayer :: MonadIO m => TChan Game.State -> Player -> ConduitT () Game.LocalState m ()
-    notifyPlayer playerChannel player = do
-      gameState <- runSTM (readTChan playerChannel)
-      yield $ Game.playerState player gameState
-      notifyPlayer playerChannel player
+      (currentGameState, playerChannel) <-
+        runSTM
+          ( do
+              chan <- dupTChan (State.broadcastChannel state)
+              gameState <- readTVar (State.gameState state)
+              pure (gameState, chan)
+          )
+      yield (Game.playerState player currentGameState)
+      notificationLoop playerChannel player
+
+notificationLoop :: MonadIO m => TChan Game.State -> Player -> ConduitT () Game.LocalState m ()
+notificationLoop playerChannel player = do
+  gameState <- runSTM (readTChan playerChannel)
+  yield $ Game.playerState player gameState
+  notificationLoop playerChannel player
 
 staticContentServer :: Server StaticContentRoutes
 staticContentServer =
