@@ -33,7 +33,7 @@ type alias Model =
 
 
 type Msg
-    = ServerStateResponse (Result Http.Error Api.LocalState)
+    = JoinResponse (Result Http.Error Player)
     | StateUpdate (Result String Api.LocalState)
     | PaintCountryResponse (Result Http.Error ())
     | Clicked Country
@@ -57,20 +57,20 @@ init { boardSvgPath } =
       , hoveredCountry = Nothing
       , gameState = GameState.Loading
       }
-    , Api.postJoin ServerStateResponse
+    , Api.postJoin JoinResponse
     )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ServerStateResponse result ->
+        JoinResponse result ->
             case result of
-                Ok localState ->
-                    ( { model | gameState = GameState.Loaded localState }
+                Ok player ->
+                    ( model
                     , case model.gameState of
                         GameState.Loading ->
-                            initSocket (Player.toRequestParam localState.identity)
+                            initSocket (Player.toRequestParam player)
 
                         _ ->
                             Cmd.none
