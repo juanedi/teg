@@ -34,7 +34,7 @@ import System.Environment (lookupEnv)
 
 type APIRoutes =
   "join" :> Post '[JSON] Game.LocalState
-    :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> Post '[JSON] Game.LocalState
+    :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> PostNoContent '[JSON] ()
 
 type WebSocketRoutes =
   "socket" :> Capture "player" Player :> WebSocketConduit () Game.LocalState
@@ -129,7 +129,7 @@ join state =
           newState = state'
         }
 
-paintCountry :: (Player, Country) -> Action Game.LocalState
+paintCountry :: (Player, Country) -> Action ()
 paintCountry (player, country) state =
   case Game.paintCountry player country state of
     Left err ->
@@ -139,7 +139,7 @@ paintCountry (player, country) state =
         }
     Right state' ->
       Result
-        { response = Right (Game.playerState player state'),
+        { response = Right (),
           newState = state'
         }
 

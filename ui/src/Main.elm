@@ -35,6 +35,7 @@ type alias Model =
 type Msg
     = ServerStateResponse (Result Http.Error Api.LocalState)
     | StateUpdate (Result String Api.LocalState)
+    | PaintCountryResponse (Result Http.Error ())
     | Clicked Country
     | MouseEntered Country
     | MouseLeft Country
@@ -90,6 +91,10 @@ update msg model =
                     -- TODO: handle error
                     ( model, Cmd.none )
 
+        PaintCountryResponse result ->
+            -- TODO: handle error
+            ( model, Cmd.none )
+
         Clicked country ->
             case model.gameState of
                 GameState.Loading ->
@@ -97,7 +102,7 @@ update msg model =
 
                 GameState.Loaded { identity } ->
                     ( model
-                    , Api.postPaint ( identity, country ) ServerStateResponse
+                    , Api.postPaint ( identity, country ) PaintCountryResponse
                     )
 
         MouseEntered country ->
