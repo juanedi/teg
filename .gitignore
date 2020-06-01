@@ -1,4 +1,5 @@
-.stack-work
+/.stack-work
+/log
 
 ui/node_modules
 ui/elm-stuff

@@ -18,12 +18,15 @@ import qualified Game
 import Game (Country, Player)
 import Network.Wai
 import Network.Wai.Handler.Warp
-import Network.Wai.Logger (withStdoutLogger)
+import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
 import Servant
 import Server.State (State)
 import qualified Server.State as State
 import qualified Server.WebSocket as WebSocket
+import qualified System.Directory as Directory
 import System.Environment (lookupEnv)
+import qualified System.FilePath.Posix as FilePath
+import qualified System.Log.FastLogger.Date as Date
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
@@ -59,14 +62,27 @@ run = do
   maybePort <- lookupEnv "PORT"
   let port = fromMaybe 8080 (fmap read maybePort)
   state <- State.init
-  withStdoutLogger $ \logger -> do
-    let settings =
-          setPort port
-            $ setLogger logger
-            $ defaultSettings
-    putStrLn ("Starting the application at port " ++ show port)
-    runSettings settings (app state)
-  where
+  logger <- initializeLogger
+  let settings =
+        setPort port
+          $ setLogger logger
+          $ defaultSettings
+  putStrLn ("Starting the application at port " ++ show port)
+  runSettings settings (app state)
+
+initializeLogger :: IO ApacheLogger
+initializeLogger = do
+  -- TODO: read target directory from env
+  let logFile = "log/access.log"
+  let directory = FilePath.takeDirectory logFile
+  Directory.createDirectoryIfMissing True directory
+  getTime <- Date.newTimeCache Date.simpleTimeFormat
+  apacheLogger
+    <$> ( initLogger
+            FromFallback
+            (LogFileNoRotate logFile 4096)
+            getTime
+        )
 
 app :: State -> Application
 app state =
