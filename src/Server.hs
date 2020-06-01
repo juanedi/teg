@@ -61,8 +61,9 @@ run :: IO ()
 run = do
   maybePort <- lookupEnv "PORT"
   let port = fromMaybe 8080 (fmap read maybePort)
+  logFile <- lookupEnv "REQUESTS_LOG"
+  logger <- initializeLogger (fromMaybe "./requests.log" logFile)
   state <- State.init
-  logger <- initializeLogger
   let settings =
         setPort port
           $ setLogger logger
@@ -70,10 +71,8 @@ run = do
   putStrLn ("Starting the application at port " ++ show port)
   runSettings settings (app state)
 
-initializeLogger :: IO ApacheLogger
-initializeLogger = do
-  -- TODO: read target directory from env
-  let logFile = "log/access.log"
+initializeLogger :: String -> IO ApacheLogger
+initializeLogger logFile = do
   let directory = FilePath.takeDirectory logFile
   Directory.createDirectoryIfMissing True directory
   getTime <- Date.newTimeCache Date.simpleTimeFormat
