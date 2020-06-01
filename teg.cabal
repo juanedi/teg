@@ -31,7 +31,10 @@ library
                      , casing
                      , conduit
                      , containers
+                     , directory
                      , elm-bridge
+                     , fast-logger
+                     , filepath
                      , http-api-data
                      , process
                      , servant
