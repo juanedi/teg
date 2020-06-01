@@ -17,7 +17,9 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Game
 
 data State = State
-  { gameState :: TVar Game.State,
+  { -- TODO: move all session management state here, so that we can keep track
+    -- of open websocket channels.
+    gameState :: TVar Game.State,
     broadcastChannel :: TChan Game.State
   }
 
