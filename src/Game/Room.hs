@@ -10,8 +10,7 @@ where
 import qualified Client.Room
 import qualified Game
 import Game.Player (Player (..))
-import qualified Result
-import Result (Error (..), Result)
+import Result (Error (..), Result (..))
 
 data Room
   = WaitingForRed
@@ -25,17 +24,20 @@ join :: Room -> Result Room Player
 join room =
   case room of
     WaitingForRed ->
-      Result.succeed
-        WaitingForBlue
-        Red
+      Result
+        { response = Right Red,
+          newState = WaitingForBlue
+        }
     WaitingForBlue ->
-      Result.succeed
-        (Started Game.init)
-        Blue
+      Result
+        { response = Right Blue,
+          newState = Started Game.init
+        }
     Started _ ->
-      Result.err
-        room
-        (InvalidMove "Trying to join a game that has already started")
+      Result
+        { response = Left (InvalidMove "Trying to join a game that has already started"),
+          newState = room
+        }
 
 clientState :: Player -> Room -> Client.Room.Room
 clientState player room =
@@ -49,18 +51,26 @@ updateGame :: (Game.State -> Result Game.State result) -> Room -> Result Room re
 updateGame fn room =
   case room of
     WaitingForRed ->
-      Result.err
-        room
-        (InvalidMove "Trying to make a move on a game that hasn't started yet")
+      Result
+        { response = Left (InvalidMove "Trying to make a move on a game that hasn't started yet"),
+          newState = room
+        }
     WaitingForBlue ->
-      Result.err
-        room
-        (InvalidMove "Trying to make a move on a game that hasn't started yet")
+      Result
+        { response = Left (InvalidMove "Trying to make a move on a game that hasn't started yet"),
+          newState = room
+        }
     Started gameState ->
       let result = fn gameState
           room' = Started (Result.newState result)
        in case Result.response result of
             Left err ->
-              Result.err room' err
+              Result
+                { response = Left err,
+                  newState = room'
+                }
             Right val ->
-              Result.succeed room' val
+              Result
+                { response = Right val,
+                  newState = room'
+                }

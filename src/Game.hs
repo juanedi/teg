@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeOperators #-}
-
 module Game
   ( State,
     Country,
@@ -14,7 +10,6 @@ where
 
 import qualified Client.Game
 import qualified Data.Map as Map
-import Elm.Derive (defaultOptions, deriveBoth)
 import Game.Country (Country (..))
 import Game.Player (Player (..))
 import Result (Error (..))
