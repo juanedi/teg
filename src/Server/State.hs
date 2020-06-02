@@ -1,49 +1,48 @@
 module Server.State
   ( State,
     Server.State.init,
-    readGameState,
-    updateGameState,
+    readRoom,
+    updateRoom,
     playerUpdatesChannel,
     runSTM,
   )
 where
 
-import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM (STM)
+import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChanIO, writeTChan)
-import Control.Concurrent.STM.TVar (newTVarIO, readTVar, writeTVar)
 import Control.Concurrent.STM.TVar (TVar)
+import Control.Concurrent.STM.TVar (newTVarIO, readTVar, writeTVar)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Game
+import Game.Room (Room)
+import qualified Game.Room as Room
 
 data State = State
-  { -- TODO: move all session management state here, so that we can keep track
-    -- of open websocket channels.
-    gameState :: TVar Game.State,
-    broadcastChannel :: TChan Game.State
+  { room :: TVar Room,
+    broadcastChannel :: TChan Room
   }
 
 init :: IO State
 init = do
-  gameState <- newTVarIO Game.init
+  room <- newTVarIO Room.init
   broadcastChannel <- newBroadcastTChanIO
   pure
     ( State
-        { gameState = gameState,
+        { room = room,
           broadcastChannel = broadcastChannel
         }
     )
 
-readGameState :: State -> STM Game.State
-readGameState state =
-  readTVar (gameState state)
+readRoom :: State -> STM Room
+readRoom state =
+  readTVar (room state)
 
-updateGameState :: Game.State -> State -> STM ()
-updateGameState gs state = do
-  writeTVar (gameState state) gs
-  writeTChan (broadcastChannel state) gs
+updateRoom :: Room -> State -> STM ()
+updateRoom room_ state = do
+  writeTVar (room state) room_
+  writeTChan (broadcastChannel state) room_
 
-playerUpdatesChannel :: State -> STM (TChan Game.State)
+playerUpdatesChannel :: State -> STM (TChan Room)
 playerUpdatesChannel state =
   dupTChan (broadcastChannel state)
 
