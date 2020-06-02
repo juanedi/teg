@@ -1,8 +1,6 @@
 module Result
   ( Result (..),
     Error (..),
-    succeed,
-    err,
   )
 where
 
@@ -21,17 +19,3 @@ data Result state result = Result
 data Error
   = InvalidMove Text
   | InternalError Text
-
-succeed :: state -> result -> Result state result
-succeed newState result =
-  Result
-    { response = Right result,
-      newState = newState
-    }
-
-err :: state -> Error -> Result state result
-err newState error =
-  Result
-    { response = Left error,
-      newState = newState
-    }
