@@ -4,6 +4,8 @@
 
 module Codegen (run) where
 
+import qualified Client.Game
+import qualified Client.Room
 import qualified Game
 import Servant.Elm (DefineElm (DefineElm), Proxy (Proxy), defElmImports, defElmOptions, generateElmModuleWith)
 import Server (APIRoutes)
@@ -21,9 +23,10 @@ run =
           defElmImports
           outputDir
           [ DefineElm (Proxy :: Proxy Game.Country),
-            DefineElm (Proxy :: Proxy Game.LocalState),
-            DefineElm (Proxy :: Proxy Game.Instructions),
-            DefineElm (Proxy :: Proxy Game.Player)
+            DefineElm (Proxy :: Proxy Game.Player),
+            DefineElm (Proxy :: Proxy Client.Game.Game),
+            DefineElm (Proxy :: Proxy Client.Game.Instructions),
+            DefineElm (Proxy :: Proxy Client.Room.Room)
           ]
           (Proxy :: Proxy APIRoutes)
         putStrLn "Formatting generated code using elm-format..."

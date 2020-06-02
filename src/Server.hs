@@ -16,9 +16,12 @@ import qualified Data.Text.Lazy
 import Data.Text.Lazy.Encoding (encodeUtf8)
 import qualified Game
 import Game (Country, Player)
+import Game.Room (Room)
+import qualified Game.Room as Room
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
+import Result (Error (..), Result (..))
 import Servant
 import Server.State (State)
 import qualified Server.State as State
@@ -45,17 +48,7 @@ type Routes = APIRoutes :<|> WebSocket.Routes :<|> StaticContentRoutes
    It can return a modify state and signal an error, but doesn't allow to
    perform IO.
 -}
-type Action a = Game.State -> Result a
-
-{- The result of a computation over a game.
-
-   It can signal an error or emit a value, and allows to modify the resulting
-   state regardless of whether we got an error or not.
--}
-data Result a = Result
-  { response :: Either Game.Error a,
-    newState :: Game.State
-  }
+type Action result = Room -> Result Room result
 
 run :: IO ()
 run = do
@@ -95,7 +88,7 @@ api = Proxy
 
 gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
 gameApiServer runAction =
-  runAction join
+  runAction Room.join
     :<|> runAction . paintCountry
 
 staticContentServer :: Server StaticContentRoutes
@@ -103,40 +96,29 @@ staticContentServer =
   serveDirectoryWebApp "ui/_build"
     :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
 
-join :: Action Player
-join state =
-  case Game.join state of
-    Left err ->
-      Result
-        { response = Left err,
-          newState = state
-        }
-    Right (player, state') ->
-      Result
-        { response = Right player,
-          newState = state'
-        }
-
 paintCountry :: (Player, Country) -> Action ()
-paintCountry (player, country) state =
-  case Game.paintCountry player country state of
-    Left err ->
-      Result
-        { response = Left err,
-          newState = state
-        }
-    Right state' ->
-      Result
-        { response = Right (),
-          newState = state'
-        }
+paintCountry (player, country) =
+  Room.updateGame
+    ( \gameState ->
+        case Game.paintCountry player country gameState of
+          Left err ->
+            Result
+              { response = Left err,
+                newState = gameState
+              }
+          Right gameState' ->
+            Result
+              { response = Right (),
+                newState = gameState'
+              }
+    )
 
-handleError :: Game.Error -> Handler a
+handleError :: Error -> Handler a
 handleError gameError =
   case gameError of
-    Game.InvalidMove msg ->
+    InvalidMove msg ->
       throwError (err400 {errBody = encodeErrorMsg msg})
-    Game.InternalError msg ->
+    InternalError msg ->
       throwError (err500 {errBody = encodeErrorMsg msg})
 
 encodeErrorMsg :: Text -> Data.ByteString.Lazy.ByteString
@@ -148,9 +130,9 @@ runAction state action = do
   result <-
     State.runSTM $
       do
-        gameState <- State.readGameState state
-        let result = action gameState
-        State.updateGameState (newState result) state
+        room <- State.readRoom state
+        let result = action room
+        State.updateRoom (newState result) state
         pure result
   case response result of
     Left err -> handleError err

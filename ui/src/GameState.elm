@@ -5,4 +5,4 @@ import Api
 
 type GameState
     = Loading
-    | Loaded Api.LocalState
+    | Loaded Api.Room

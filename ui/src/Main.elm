@@ -34,7 +34,7 @@ type alias Model =
 
 type Msg
     = JoinResponse (Result Http.Error Player)
-    | StateUpdate (Result String Api.LocalState)
+    | StateUpdate (Result String Api.Room)
     | PaintCountryResponse (Result Http.Error ())
     | Clicked Country
     | MouseEntered Country
@@ -82,8 +82,8 @@ update msg model =
 
         StateUpdate result ->
             case result of
-                Ok localState ->
-                    ( { model | gameState = GameState.Loaded localState }
+                Ok room ->
+                    ( { model | gameState = GameState.Loaded room }
                     , Cmd.none
                     )
 
@@ -100,7 +100,10 @@ update msg model =
                 GameState.Loading ->
                     ( model, Cmd.none )
 
-                GameState.Loaded { identity } ->
+                GameState.Loaded Api.WaitingForPlayers ->
+                    ( model, Cmd.none )
+
+                GameState.Loaded (Api.Started { identity }) ->
                     ( model
                     , Api.postPaint ( identity, country ) PaintCountryResponse
                     )
@@ -133,7 +136,7 @@ subscriptions _ =
     stateUpdates
         (\value ->
             value
-                |> Decode.decodeValue Api.jsonDecLocalState
+                |> Decode.decodeValue Api.jsonDecRoom
                 |> Result.mapError (\_ -> "Could not decode state sent by the websocket")
                 |> StateUpdate
         )
@@ -141,38 +144,41 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
-    Html.div
-        [ css
-            [ Css.height (Css.vh 100)
-            , Css.width (Css.vw 100)
-            , Css.position Css.fixed
-            , Css.top Css.zero
-            , Css.left Css.zero
-            , Css.backgroundColor (Css.hex "#e9f0f0")
-            ]
-        ]
-        [ Board.view
-            { svgPath = model.boardSvgPath
-            , onCountryClicked = Just Clicked
-            , onCountryMouseEnter = Just MouseEntered
-            , onCountryMouseLeave = Just MouseLeft
-            , highlightedCoutries =
-                List.concat
-                    [ model.hoveredCountry
-                        |> Maybe.map List.singleton
-                        |> Maybe.withDefault []
-                    , case model.gameState of
-                        GameState.Loading ->
-                            []
+    case model.gameState of
+        GameState.Loading ->
+            Html.text "Joining the game"
 
-                        GameState.Loaded { paintedCountries } ->
-                            paintedCountries
-                                |> List.map Tuple.first
+        GameState.Loaded Api.WaitingForPlayers ->
+            Html.text "Waiting for other players to join"
+
+        GameState.Loaded (Api.Started game) ->
+            Html.div
+                [ css
+                    [ Css.height (Css.vh 100)
+                    , Css.width (Css.vw 100)
+                    , Css.position Css.fixed
+                    , Css.top Css.zero
+                    , Css.left Css.zero
+                    , Css.backgroundColor (Css.hex "#e9f0f0")
                     ]
-            , styles =
-                [ Css.height (Css.pct 100)
-                , Css.width (Css.pct 100)
                 ]
-            }
-            |> Html.fromUnstyled
-        ]
+                [ Board.view
+                    { svgPath = model.boardSvgPath
+                    , onCountryClicked = Just Clicked
+                    , onCountryMouseEnter = Just MouseEntered
+                    , onCountryMouseLeave = Just MouseLeft
+                    , highlightedCoutries =
+                        List.concat
+                            [ model.hoveredCountry
+                                |> Maybe.map List.singleton
+                                |> Maybe.withDefault []
+                            , game.paintedCountries
+                                |> List.map Tuple.first
+                            ]
+                    , styles =
+                        [ Css.height (Css.pct 100)
+                        , Css.width (Css.pct 100)
+                        ]
+                    }
+                    |> Html.fromUnstyled
+                ]

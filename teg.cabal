@@ -18,10 +18,13 @@ library
   ghc-options:         -fwarn-unused-imports
   exposed-modules:     Codegen
                      , Server
-  other-modules:       Game
+  other-modules:       Client.Game
+                     , Client.Room
+                     , Game
                      , Game.Country
-                     , Game.LocalState
                      , Game.Player
+                     , Game.Room
+                     , Result
                      , Server.Serialization
                      , Server.State
                      , Server.WebSocket
@@ -48,6 +51,7 @@ library
                      , wai-logger
                      , warp
   default-language:    Haskell2010
+  default-extensions:  OverloadedStrings
 
 executable teg
   hs-source-dirs:      app
