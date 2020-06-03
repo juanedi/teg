@@ -1,50 +1,39 @@
 module Server.State
-  ( State,
+  ( State (..),
     Server.State.init,
-    readRoom,
+    initIO,
     updateRoom,
-    playerUpdatesChannel,
     runSTM,
   )
 where
 
-import Control.Concurrent.STM (STM)
-import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChanIO, writeTChan)
+import Control.Concurrent.STM (STM, atomically)
 import Control.Concurrent.STM.TVar (TVar)
-import Control.Concurrent.STM.TVar (newTVarIO, readTVar, writeTVar)
+import Control.Concurrent.STM.TVar (newTVar, readTVar, writeTVar)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Game.Room (Room)
 import qualified Game.Room as Room
+import Result (Result)
+import qualified Result
 
-data State = State
-  { room :: TVar Room,
-    broadcastChannel :: TChan Room
-  }
+data State = State {roomVar :: TVar Room}
 
-init :: IO State
+initIO :: IO State
+initIO = atomically Server.State.init
+
+init :: STM State
 init = do
-  room <- newTVarIO Room.init
-  broadcastChannel <- newBroadcastTChanIO
-  pure
-    ( State
-        { room = room,
-          broadcastChannel = broadcastChannel
-        }
-    )
+  roomVar <- Room.init >>= newTVar
+  pure (State roomVar)
 
-readRoom :: State -> STM Room
-readRoom state =
-  readTVar (room state)
-
-updateRoom :: Room -> State -> STM ()
-updateRoom room_ state = do
-  writeTVar (room state) room_
-  writeTChan (broadcastChannel state) room_
-
-playerUpdatesChannel :: State -> STM (TChan Room)
-playerUpdatesChannel state =
-  dupTChan (broadcastChannel state)
+updateRoom :: (Room -> Result Room val) -> State -> STM (Result Room val)
+updateRoom fn (State roomVar) = do
+  room <- readTVar roomVar
+  let result = fn room
+  let room' = Result.newState result
+  writeTVar roomVar room'
+  Room.broadcastChanges room'
+  pure result
 
 runSTM :: MonadIO m => STM a -> m a
-runSTM = liftIO . STM.atomically
+runSTM = liftIO . atomically
