@@ -34,6 +34,7 @@ import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
 type APIRoutes =
+  -- TODO: start :: Room [only if waiting for players. doesn't join the game but lets the user pick the player]
   "join" :> Post '[JSON] Player
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> PostNoContent '[JSON] ()
 
@@ -56,7 +57,7 @@ run = do
   let port = fromMaybe 8080 (fmap read maybePort)
   logFile <- lookupEnv "REQUESTS_LOG"
   logger <- initializeLogger (fromMaybe "./requests.log" logFile)
-  state <- State.init
+  state <- State.initIO
   let settings =
         setPort port
           $ setLogger logger
@@ -127,13 +128,7 @@ encodeErrorMsg msg =
 
 runAction :: State -> Action a -> Handler a
 runAction state action = do
-  result <-
-    State.runSTM $
-      do
-        room <- State.readRoom state
-        let result = action room
-        State.updateRoom (newState result) state
-        pure result
+  result <- State.runSTM (State.updateRoom action state)
   case response result of
     Left err -> handleError err
     Right value -> pure value

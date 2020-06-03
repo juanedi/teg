@@ -9,11 +9,13 @@ where
 
 import qualified Client.Room
 import Conduit (ResourceT)
-import Control.Concurrent.STM.TChan (TChan, readTChan)
+import qualified Control.Concurrent.STM as STM
+import Control.Concurrent.STM.TChan (readTChan)
+import Control.Concurrent.STM.TVar (readTVar, writeTVar)
 import Data.Conduit (ConduitT, bracketP)
 import Data.Conduit (yield)
 import Game (Player)
-import Game.Room (Room)
+import Game.Room (ClientChannel)
 import qualified Game.Room
 import Servant
 import Servant.API.WebSocketConduit (WebSocketConduit)
@@ -47,22 +49,38 @@ server state =
         (startNotifications state player)
   )
 
-playerConnected :: State -> Player -> IO (TChan Room)
+playerConnected :: State -> Player -> IO ClientChannel
 playerConnected state player = do
-  putStrLn "------------------ player connected"
-  State.runSTM (State.playerUpdatesChannel state)
+  maybeChannel <-
+    STM.atomically
+      ( do
+          room <- readTVar (State.roomVar state)
+          (room', maybeChannel) <- Game.Room.playerConnected player room
+          writeTVar (State.roomVar state) room'
+          -- broadcast to let other clients know that a new player joined.
+          -- TODO: there's some duplication between this and State.updateRoom.
+          Game.Room.broadcastChanges room'
+          pure maybeChannel
+      )
+  case maybeChannel of
+    Nothing -> fail "Could not connect!"
+    Just channel -> do
+      pure channel
 
-startNotifications :: State -> Player -> TChan Room -> UpdatesConduit
+startNotifications :: State -> Player -> ClientChannel -> UpdatesConduit
 startNotifications state player playerChannel = do
-  firstState <- State.runSTM (State.readRoom state)
-  notificationLoop player playerChannel firstState
+  -- we want to send an initial update right away without waiting for there to
+  -- be a change in the room
+  room <- State.runSTM (readTVar (State.roomVar state))
+  notificationLoop player playerChannel (Game.Room.state room)
 
-notificationLoop :: Player -> TChan Room -> Room -> UpdatesConduit
-notificationLoop player playerChannel stateToNotify = do
-  yield $ Game.Room.clientState player stateToNotify
-  newState <- State.runSTM (readTChan playerChannel)
-  notificationLoop player playerChannel newState
+notificationLoop :: Player -> ClientChannel -> Game.Room.State -> UpdatesConduit
+notificationLoop player playerChannel roomState = do
+  yield (Game.Room.clientState player roomState)
+  roomState' <- State.runSTM (readTChan playerChannel)
+  notificationLoop player playerChannel roomState'
 
-playerDisconnected :: State -> Player -> TChan Room -> IO ()
+playerDisconnected :: State -> Player -> ClientChannel -> IO ()
 playerDisconnected state player playerChannel =
+  -- TODO: cleanup!
   putStrLn "------------------ player disconnected"
