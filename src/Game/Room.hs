@@ -54,25 +54,13 @@ join :: Room -> Result Room Player
 join room =
   case state room of
     WaitingForPlayers (Waiting, Waiting) ->
-      Result
-        { response = Right Red,
-          newState = room {state = WaitingForPlayers (Connecting, Waiting)}
-        }
+      (room {state = WaitingForPlayers (Connecting, Waiting)}, Right Red)
     WaitingForPlayers (redPlayerState, Waiting) ->
-      Result
-        { response = Right Blue,
-          newState = room {state = WaitingForPlayers (redPlayerState, Connecting)}
-        }
+      (room {state = WaitingForPlayers (redPlayerState, Connecting)}, Right Blue)
     WaitingForPlayers _ ->
-      Result
-        { response = Left (InvalidMove "Trying to join a game but all slots are taken"),
-          newState = room
-        }
+      (room, Left (InvalidMove "Trying to join a game but all slots are taken"))
     Started _ gameState ->
-      Result
-        { response = Left (InvalidMove "Trying to join a game that has already started"),
-          newState = room
-        }
+      (room, Left (InvalidMove "Trying to join a game that has already started"))
 
 playerConnected :: Player -> Room -> STM (Room, Maybe ClientChannel)
 playerConnected player room =
@@ -117,21 +105,14 @@ updateGame :: (Game.State -> Result Game.State result) -> Room -> Result Room re
 updateGame fn room =
   case state room of
     WaitingForPlayers _ ->
-      Result
-        { response = Left (InvalidMove "Trying to make a move on a game that hasn't started yet"),
-          newState = room
-        }
+      ( room,
+        Left (InvalidMove "Trying to make a move on a game that hasn't started yet")
+      )
     Started connections gameState ->
-      let result = fn gameState
-          state' = Started connections (Result.newState result)
-       in case Result.response result of
+      let (gameState', result) = fn gameState
+          state' = Started connections gameState'
+       in case result of
             Left err ->
-              Result
-                { response = Left err,
-                  newState = room {state = state'}
-                }
+              (room {state = state'}, Left err)
             Right val ->
-              Result
-                { response = Right val,
-                  newState = room {state = state'}
-                }
+              (room {state = state'}, Right val)

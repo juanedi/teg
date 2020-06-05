@@ -49,7 +49,7 @@ type Routes = APIRoutes :<|> WebSocket.Routes :<|> StaticContentRoutes
    It can return a modify state and signal an error, but doesn't allow to
    perform IO.
 -}
-type Action result = Room -> Result Room result
+type Action val = Room -> Result Room val
 
 run :: IO ()
 run = do
@@ -103,15 +103,9 @@ paintCountry (player, country) =
     ( \gameState ->
         case Game.paintCountry player country gameState of
           Left err ->
-            Result
-              { response = Left err,
-                newState = gameState
-              }
+            (gameState, Left err)
           Right gameState' ->
-            Result
-              { response = Right (),
-                newState = gameState'
-              }
+            (gameState', Right ())
     )
 
 handleError :: Error -> Handler a
@@ -128,7 +122,11 @@ encodeErrorMsg msg =
 
 runAction :: State -> Action a -> Handler a
 runAction state action = do
-  result <- State.runSTM (State.updateRoom action state)
-  case response result of
+  response <-
+    State.runSTM $
+      State.updateRoom
+        (\room -> pure (action room))
+        state
+  case response of
     Left err -> handleError err
     Right value -> pure value

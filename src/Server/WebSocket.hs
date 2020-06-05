@@ -11,7 +11,7 @@ import qualified Client.Room
 import Conduit (ResourceT)
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (readTChan)
-import Control.Concurrent.STM.TVar (readTVar, writeTVar)
+import Control.Concurrent.STM.TVar (readTVar)
 import Data.Conduit (ConduitT, bracketP)
 import Data.Conduit (yield)
 import Game (Player)
@@ -52,19 +52,14 @@ server state =
 playerConnected :: State -> Player -> IO ClientChannel
 playerConnected state player = do
   maybeChannel <-
-    STM.atomically
-      ( do
-          room <- readTVar (State.roomVar state)
-          (room', maybeChannel) <- Game.Room.playerConnected player room
-          writeTVar (State.roomVar state) room'
-          -- broadcast to let other clients know that a new player joined.
-          -- TODO: there's some duplication between this and State.updateRoom.
-          Game.Room.broadcastChanges room'
-          pure maybeChannel
-      )
+    STM.atomically $
+      State.updateRoom
+        (Game.Room.playerConnected player)
+        state
   case maybeChannel of
     Nothing -> fail "Could not connect!"
     Just channel -> do
+      putStrLn ("------------------ player connected: " ++ show player)
       pure channel
 
 startNotifications :: State -> Player -> ClientChannel -> UpdatesConduit
@@ -82,5 +77,5 @@ notificationLoop player playerChannel roomState = do
 
 playerDisconnected :: State -> Player -> ClientChannel -> IO ()
 playerDisconnected state player playerChannel =
-  -- TODO: cleanup!
-  putStrLn "------------------ player disconnected"
+  -- TODO: cleanup socket and pause game!
+  putStrLn ("------------------ player disconnected: " ++ show player)
