@@ -9,29 +9,30 @@ module Game
 where
 
 import qualified Client.Game
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Game.Country (Country (..))
 import Game.Player (Player (..))
 import Result (Error (..))
 
 data State = State
   { turn :: Player,
-    -- NOTE: servant-elm generates buggy decoders for maps
-    paintedCountries :: [(Country, Player)]
+    paintedCountries :: Map Country Player
   }
 
 init :: State
 init =
   State
     { turn = Red,
-      paintedCountries = []
+      paintedCountries = Map.empty
     }
 
 playerState :: Player -> State -> Client.Game.Game
 playerState player state =
   Client.Game.Game
     { Client.Game.identity = player,
-      Client.Game.paintedCountries = paintedCountries state,
+      -- NOTE: servant-elm generates buggy decoders for maps
+      Client.Game.paintedCountries = Map.toList (paintedCountries state),
       Client.Game.instructions =
         if turn state == player
           then Client.Game.PaintCountry
@@ -45,7 +46,7 @@ paintCountry player country state =
       Right $
         State
           { turn = otherPlayer (turn state),
-            paintedCountries = Map.toList (Map.insert country player (Map.fromList (paintedCountries state)))
+            paintedCountries = Map.insert country player (paintedCountries state)
           }
     else Left (InvalidMove "Trying to make a move outside of the user's turn")
 
