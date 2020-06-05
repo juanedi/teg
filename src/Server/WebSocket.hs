@@ -15,8 +15,8 @@ import Control.Concurrent.STM.TVar (readTVar)
 import Data.Conduit (ConduitT, bracketP)
 import Data.Conduit (yield)
 import Game (Player)
-import Game.Room (ClientChannel)
 import qualified Game.Room
+import Game.Room (ClientChannel)
 import Servant
 import Servant.API.WebSocketConduit (WebSocketConduit)
 import Server.State (State)
@@ -38,16 +38,37 @@ type UpdatesConduit =
     ()
 
 type Routes =
-  "socket" :> Capture "player" Player :> WebSocketConduit () Client.Room.Room
+  "lobby" :> WebSocketConduit () [Player]
+    :<|> "game_updates" :> Capture "player" Player :> WebSocketConduit () Client.Room.Room
 
 server :: State -> Server Routes
 server state =
-  ( \player ->
-      bracketP
-        (playerConnected state player)
-        (playerDisconnected state player)
-        (startNotifications state player)
-  )
+  lobby state
+    :<|> gameUpdates state
+
+lobby :: State -> ConduitT () [Player] (ResourceT IO) ()
+lobby state = do
+  (room, chan) <-
+    State.runSTM $
+      do
+        room <- (readTVar (State.roomVar state))
+        chan <- Game.Room.subscribe room
+        pure (room, chan)
+  lobbyLoop chan (Game.Room.state room)
+
+lobbyLoop :: STM.TChan Game.Room.State -> Game.Room.State -> ConduitT () [Player] (ResourceT IO) ()
+lobbyLoop chan roomState = do
+  let freeSlots = Game.Room.freeSlots roomState
+  yield freeSlots
+  roomState' <- State.runSTM (readTChan chan)
+  lobbyLoop chan roomState'
+
+gameUpdates :: State -> Player -> UpdatesConduit
+gameUpdates state player =
+  bracketP
+    (playerConnected state player)
+    (playerDisconnected state player)
+    (startNotifications state player)
 
 playerConnected :: State -> Player -> IO ClientChannel
 playerConnected state player = do

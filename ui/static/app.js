@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
   app.ports.initSocket.subscribe(function(player) {
     console.log("Initializing websocket for player", player)
 
-    window.updatesSocket = new WebSocket(`ws://localhost:5000/socket/${player}`);
+    window.updatesSocket = new WebSocket(`ws://localhost:5000/game_updates/${player}`);
 
     updatesSocket.onopen = function (event) {
       console.log("Connection to websocket succeeded!")

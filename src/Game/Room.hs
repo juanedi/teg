@@ -3,6 +3,8 @@ module Game.Room
     ClientChannel,
     State,
     Game.Room.init,
+    freeSlots,
+    subscribe,
     join,
     broadcastChanges,
     clientState,
@@ -49,6 +51,24 @@ init = do
       { broadcastChannel = broadcastChannel,
         state = WaitingForPlayers (Waiting, Waiting)
       }
+
+freeSlots :: State -> [Player]
+freeSlots state =
+  case state of
+    WaitingForPlayers (Waiting, Waiting) ->
+      [Red, Blue]
+    WaitingForPlayers (Waiting, _) ->
+      [Red]
+    WaitingForPlayers (_, Waiting) ->
+      [Blue]
+    WaitingForPlayers _ ->
+      []
+    Started _ _ ->
+      []
+
+subscribe :: Room -> STM (TChan State)
+subscribe room =
+  dupTChan (broadcastChannel room)
 
 join :: Room -> Result Room Player
 join room =
