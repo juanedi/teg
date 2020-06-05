@@ -11,10 +11,7 @@ import Data.Text (Text)
    It can signal an error or emit a value, and allows to modify the resulting
    state regardless of whether we got an error or not.
 -}
-data Result state result = Result
-  { response :: Either Error result,
-    newState :: state
-  }
+type Result state result = (state, Either Error result)
 
 data Error
   = InvalidMove Text

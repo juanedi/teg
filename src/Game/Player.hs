@@ -13,7 +13,7 @@ import Web.HttpApiData (FromHttpApiData (..))
 data Player
   = Red
   | Blue
-  deriving (Eq)
+  deriving (Eq, Show)
 
 deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''Player
 
