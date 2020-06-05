@@ -13,7 +13,6 @@ import Control.Concurrent.STM.TVar (newTVar, readTVar, writeTVar)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Game.Room (Room)
 import qualified Game.Room as Room
-import qualified Result
 
 data State = State {roomVar :: TVar Room}
 
@@ -25,10 +24,10 @@ init = do
   roomVar <- Room.init >>= newTVar
   pure (State roomVar)
 
-updateRoom :: (Room -> STM (Room, val)) -> State -> STM val
+updateRoom :: (Room -> STM (val, Room)) -> State -> STM val
 updateRoom fn (State roomVar) = do
   room <- readTVar roomVar
-  (room', val) <- fn room
+  (val, room') <- fn room
   writeTVar roomVar room'
   Room.broadcastChanges room'
   pure val
