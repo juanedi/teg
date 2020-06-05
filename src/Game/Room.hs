@@ -54,33 +54,41 @@ join :: Room -> Result Room Player
 join room =
   case state room of
     WaitingForPlayers (Waiting, Waiting) ->
-      (room {state = WaitingForPlayers (Connecting, Waiting)}, Right Red)
+      ( Right Red,
+        room {state = WaitingForPlayers (Connecting, Waiting)}
+      )
     WaitingForPlayers (redPlayerState, Waiting) ->
-      (room {state = WaitingForPlayers (redPlayerState, Connecting)}, Right Blue)
+      ( Right Blue,
+        room {state = WaitingForPlayers (redPlayerState, Connecting)}
+      )
     WaitingForPlayers _ ->
-      (room, Left (InvalidMove "Trying to join a game but all slots are taken"))
+      ( Left (InvalidMove "Trying to join a game but all slots are taken"),
+        room
+      )
     Started _ gameState ->
-      (room, Left (InvalidMove "Trying to join a game that has already started"))
+      ( Left (InvalidMove "Trying to join a game that has already started"),
+        room
+      )
 
-playerConnected :: Player -> Room -> STM (Room, Maybe ClientChannel)
+playerConnected :: Player -> Room -> STM (Maybe ClientChannel, Room)
 playerConnected player room =
   case (player, state room) of
     (Red, WaitingForPlayers (Connecting, blueState)) ->
       do
         playerChannel <- dupTChan (broadcastChannel room)
         pure
-          ( room {state = startIfReady $ WaitingForPlayers (Connected playerChannel, blueState)},
-            Just playerChannel
+          ( Just playerChannel,
+            room {state = startIfReady $ WaitingForPlayers (Connected playerChannel, blueState)}
           )
     (Blue, WaitingForPlayers (redState, Connecting)) ->
       do
         playerChannel <- dupTChan (broadcastChannel room)
         pure
-          ( room {state = startIfReady $ WaitingForPlayers (redState, Connected playerChannel)},
-            Just playerChannel
+          ( Just playerChannel,
+            room {state = startIfReady $ WaitingForPlayers (redState, Connected playerChannel)}
           )
     _ ->
-      pure (room, Nothing)
+      pure (Nothing, room)
 
 startIfReady :: State -> State
 startIfReady state =
@@ -105,14 +113,18 @@ updateGame :: (Game.State -> Result Game.State result) -> Room -> Result Room re
 updateGame fn room =
   case state room of
     WaitingForPlayers _ ->
-      ( room,
-        Left (InvalidMove "Trying to make a move on a game that hasn't started yet")
+      ( Left (InvalidMove "Trying to make a move on a game that hasn't started yet"),
+        room
       )
     Started connections gameState ->
-      let (gameState', result) = fn gameState
+      let (result, gameState') = fn gameState
           state' = Started connections gameState'
        in case result of
             Left err ->
-              (room {state = state'}, Left err)
+              ( Left err,
+                room {state = state'}
+              )
             Right val ->
-              (room {state = state'}, Right val)
+              ( Right val,
+                room {state = state'}
+              )

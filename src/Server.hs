@@ -103,9 +103,13 @@ paintCountry (player, country) =
     ( \gameState ->
         case Game.paintCountry player country gameState of
           Left err ->
-            (gameState, Left err)
+            ( Left err,
+              gameState
+            )
           Right gameState' ->
-            (gameState', Right ())
+            ( Right (),
+              gameState'
+            )
     )
 
 handleError :: Error -> Handler a
