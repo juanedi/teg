@@ -1,10 +1,10 @@
 document.addEventListener('DOMContentLoaded', (event) => {
-  var app = Elm.Main.init({
+  const app = Elm.Main.init({
     node: document.getElementById('elm-host'),
     flags: { boardSvgPath: "/map.svg" }
-  });
+  })
 
-  app.ports.initSocket.subscribe(function(player) {
+  function initGameSocket(player) {
     console.log("Initializing websocket for player", player)
 
     window.updatesSocket = new WebSocket(`ws://localhost:5000/game_updates/${player}`);
@@ -16,7 +16,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
     updatesSocket.onmessage = function (event) {
       let newState = JSON.parse(event.data)
       console.log("Got a message!", newState)
-      app.ports.stateUpdates.send(newState)
+      app.ports.portInfo.send({ tag: "game_state_update", data: newState })
     }
-  });
+  }
+
+  app.ports.sendPortCommand.subscribe(function(cmd) {
+    switch(cmd.tag) {
+    case "init_game_socket":
+      initGameSocket(cmd.data)
+      break
+    default:
+      console.error("Unrecognized command sent through port", cmd)
+    }
+  })
 })

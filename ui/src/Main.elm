@@ -8,15 +8,24 @@ import Css
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
 import Http
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (Value)
+import Json.Encode as Encode
 import Player exposing (Player)
 import Time
 
 
-port initSocket : String -> Cmd msg
+port sendPortCommand : Value -> Cmd msg
 
 
-port stateUpdates : (Decode.Value -> msg) -> Sub msg
+port portInfo : (Value -> msg) -> Sub msg
+
+
+type PortCommand
+    = InitGameSocket Player
+
+
+type PortInfo
+    = GameStateUpdate Api.Room
 
 
 type alias Flags =
@@ -38,7 +47,7 @@ type GameState
 
 type Msg
     = JoinResponse (Result Http.Error Player)
-    | StateUpdate (Result String Api.Room)
+    | PortInfoReceived Decode.Value
     | PaintCountryResponse (Result Http.Error ())
     | Clicked Country
     | MouseEntered Country
@@ -65,6 +74,36 @@ init { boardSvgPath } =
     )
 
 
+decodePortInfo : Decode.Decoder PortInfo
+decodePortInfo =
+    Decode.field "tag" Decode.string
+        |> Decode.andThen
+            (\tag ->
+                case tag of
+                    "game_state_update" ->
+                        Decode.field
+                            "data"
+                            (Decode.map GameStateUpdate Api.jsonDecRoom)
+
+                    _ ->
+                        Decode.fail ("Could interpret port info with tag: " ++ tag)
+            )
+
+
+encodePortCommand : PortCommand -> Value
+encodePortCommand cmd =
+    case cmd of
+        InitGameSocket player ->
+            Encode.object
+                [ ( "tag", Encode.string "init_game_socket" )
+                , ( "data"
+                  , player
+                        |> Player.toUrlSegment
+                        |> Encode.string
+                  )
+                ]
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -74,7 +113,9 @@ update msg model =
                     ( model
                     , case model.gameState of
                         Loading ->
-                            initSocket (Player.toUrlSegment player)
+                            InitGameSocket player
+                                |> encodePortCommand
+                                |> sendPortCommand
 
                         _ ->
                             Cmd.none
@@ -84,9 +125,9 @@ update msg model =
                     -- TODO: handle error
                     ( model, Cmd.none )
 
-        StateUpdate result ->
-            case result of
-                Ok room ->
+        PortInfoReceived jsonValue ->
+            case Decode.decodeValue decodePortInfo jsonValue of
+                Ok (GameStateUpdate room) ->
                     ( { model | gameState = Loaded room }
                     , Cmd.none
                     )
@@ -137,13 +178,7 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    stateUpdates
-        (\value ->
-            value
-                |> Decode.decodeValue Api.jsonDecRoom
-                |> Result.mapError (\_ -> "Could not decode state sent by the websocket")
-                |> StateUpdate
-        )
+    portInfo PortInfoReceived
 
 
 view : Model -> Html Msg
