@@ -70,15 +70,18 @@ subscribe :: Room -> STM (TChan State)
 subscribe room =
   dupTChan (broadcastChannel room)
 
-join :: Room -> Result Room Player
-join room =
+join :: Player -> Room -> Result Room ()
+join player room =
+  -- TODO: use the player!
   case state room of
     WaitingForPlayers (Waiting, Waiting) ->
-      ( Right Red,
+      ( -- Right Red,
+        Right (),
         room {state = WaitingForPlayers (Connecting, Waiting)}
       )
     WaitingForPlayers (redPlayerState, Waiting) ->
-      ( Right Blue,
+      ( -- Right Blue,
+        Right (),
         room {state = WaitingForPlayers (redPlayerState, Connecting)}
       )
     WaitingForPlayers _ ->
