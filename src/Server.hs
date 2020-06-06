@@ -34,8 +34,7 @@ import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
 type APIRoutes =
-  -- TODO: start :: Room [only if waiting for players. doesn't join the game but lets the user pick the player]
-  "join" :> Post '[JSON] Player
+  "join" :> Capture "player" Text :> Post '[JSON] ()
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> PostNoContent '[JSON] ()
 
 type StaticContentRoutes =
@@ -89,13 +88,23 @@ api = Proxy
 
 gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
 gameApiServer runAction =
-  runAction Room.join
+  runAction . joinGame
     :<|> runAction . paintCountry
 
 staticContentServer :: Server StaticContentRoutes
 staticContentServer =
   serveDirectoryWebApp "ui/_build"
     :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
+
+joinGame :: Text -> Action ()
+joinGame playerId room =
+  case parseUrlPiece playerId :: Either Text Player of
+    Right player ->
+      Room.join player room
+    Left err ->
+      ( Left (InvalidMove ("Could not parse player from url param")),
+        room
+      )
 
 paintCountry :: (Player, Country) -> Action ()
 paintCountry (player, country) =
