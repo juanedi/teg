@@ -5,7 +5,6 @@ import Board
 import Browser
 import Country exposing (Country)
 import Css
-import GameState exposing (GameState)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
 import Http
@@ -32,6 +31,11 @@ type alias Model =
     }
 
 
+type GameState
+    = Loading
+    | Loaded Api.Room
+
+
 type Msg
     = JoinResponse (Result Http.Error Player)
     | StateUpdate (Result String Api.Room)
@@ -55,7 +59,7 @@ init : Flags -> ( Model, Cmd Msg )
 init { boardSvgPath } =
     ( { boardSvgPath = boardSvgPath
       , hoveredCountry = Nothing
-      , gameState = GameState.Loading
+      , gameState = Loading
       }
     , Api.postJoin JoinResponse
     )
@@ -69,7 +73,7 @@ update msg model =
                 Ok player ->
                     ( model
                     , case model.gameState of
-                        GameState.Loading ->
+                        Loading ->
                             initSocket (Player.toUrlSegment player)
 
                         _ ->
@@ -83,7 +87,7 @@ update msg model =
         StateUpdate result ->
             case result of
                 Ok room ->
-                    ( { model | gameState = GameState.Loaded room }
+                    ( { model | gameState = Loaded room }
                     , Cmd.none
                     )
 
@@ -97,13 +101,13 @@ update msg model =
 
         Clicked country ->
             case model.gameState of
-                GameState.Loading ->
+                Loading ->
                     ( model, Cmd.none )
 
-                GameState.Loaded Api.WaitingForPlayers ->
+                Loaded Api.WaitingForPlayers ->
                     ( model, Cmd.none )
 
-                GameState.Loaded (Api.Started { identity }) ->
+                Loaded (Api.Started { identity }) ->
                     ( model
                     , Api.postPaint ( identity, country ) PaintCountryResponse
                     )
@@ -145,13 +149,13 @@ subscriptions _ =
 view : Model -> Html Msg
 view model =
     case model.gameState of
-        GameState.Loading ->
+        Loading ->
             Html.text "Joining the game"
 
-        GameState.Loaded Api.WaitingForPlayers ->
+        Loaded Api.WaitingForPlayers ->
             Html.text "Waiting for other players to join"
 
-        GameState.Loaded (Api.Started game) ->
+        Loaded (Api.Started game) ->
             Html.div
                 [ css
                     [ Css.height (Css.vh 100)
