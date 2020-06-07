@@ -38,7 +38,6 @@ type alias Flags =
 
 type alias Model =
     { boardSvgPath : String
-    , hoveredCountry : Maybe Country
     , gameState : GameState
     }
 
@@ -48,7 +47,10 @@ type GameState
     | -- user is deciding which player/color to use
       Lobby (List Player)
     | Joining Player
-    | Loaded Api.Room
+    | InsideRoom
+        { room : Api.Room
+        , hoveredCountry : Maybe Country
+        }
 
 
 type Msg
@@ -74,7 +76,6 @@ main =
 init : Flags -> ( Model, Cmd Msg )
 init { boardSvgPath } =
     ( { boardSvgPath = boardSvgPath
-      , hoveredCountry = Nothing
       , gameState = Loading
       }
     , sendPortCommand (encodePortCommand InitLobbySocket)
@@ -159,7 +160,13 @@ update msg model =
                             ( model, Cmd.none )
 
                 Ok (GameStateUpdate room) ->
-                    ( { model | gameState = Loaded room }
+                    ( { model
+                        | gameState =
+                            InsideRoom
+                                { room = room
+                                , hoveredCountry = Nothing
+                                }
+                      }
                     , Cmd.none
                     )
 
@@ -187,35 +194,79 @@ update msg model =
                 Joining _ ->
                     ( model, Cmd.none )
 
-                Loaded Api.WaitingForPlayers ->
-                    ( model, Cmd.none )
+                InsideRoom { room } ->
+                    case room of
+                        Api.WaitingForPlayers ->
+                            ( model, Cmd.none )
 
-                Loaded (Api.Started { identity }) ->
-                    ( model
-                    , Api.postPaint ( identity, country ) PaintCountryResponse
-                    )
+                        Api.Started { identity } ->
+                            ( model
+                            , Api.postPaint ( identity, country ) PaintCountryResponse
+                            )
 
         MouseEntered country ->
-            ( { model | hoveredCountry = Just country }
-            , Cmd.none
-            )
+            case model.gameState of
+                Loading ->
+                    ( model, Cmd.none )
+
+                Lobby _ ->
+                    ( model, Cmd.none )
+
+                Joining _ ->
+                    ( model, Cmd.none )
+
+                InsideRoom { room } ->
+                    case room of
+                        Api.WaitingForPlayers ->
+                            ( model, Cmd.none )
+
+                        Api.Started _ ->
+                            ( { model
+                                | gameState =
+                                    InsideRoom
+                                        { room = room
+                                        , hoveredCountry = Just country
+                                        }
+                              }
+                            , Cmd.none
+                            )
 
         MouseLeft country ->
-            ( { model
-                | hoveredCountry =
-                    case model.hoveredCountry of
-                        Nothing ->
-                            Nothing
+            case model.gameState of
+                Loading ->
+                    ( model, Cmd.none )
 
-                        Just hoveredCountry ->
-                            if hoveredCountry == country then
-                                Nothing
+                Lobby _ ->
+                    ( model, Cmd.none )
 
-                            else
-                                Just hoveredCountry
-              }
-            , Cmd.none
-            )
+                Joining _ ->
+                    ( model, Cmd.none )
+
+                InsideRoom { room, hoveredCountry } ->
+                    case room of
+                        Api.WaitingForPlayers ->
+                            ( model, Cmd.none )
+
+                        Api.Started _ ->
+                            ( { model
+                                | gameState =
+                                    InsideRoom
+                                        { room = room
+                                        , hoveredCountry =
+                                            case hoveredCountry of
+                                                Nothing ->
+                                                    Nothing
+
+                                                Just c ->
+                                                    if c == country then
+                                                        Nothing
+
+                                                    else
+                                                        Just c
+                                        }
+                              }
+                            , Cmd.none
+                            )
 
 
 subscriptions : Model -> Sub Msg
@@ -246,37 +297,39 @@ view model =
         Joining player ->
             Html.text ("Joining as " ++ Player.toUrlSegment player)
 
-        Loaded Api.WaitingForPlayers ->
-            Html.text "Waiting for other players to join"
+        InsideRoom { room, hoveredCountry } ->
+            case room of
+                Api.WaitingForPlayers ->
+                    Html.text "Waiting for other players to join"
 
-        Loaded (Api.Started game) ->
-            Html.div
-                [ css
-                    [ Css.height (Css.vh 100)
-                    , Css.width (Css.vw 100)
-                    , Css.position Css.fixed
-                    , Css.top Css.zero
-                    , Css.left Css.zero
-                    , Css.backgroundColor (Css.hex "#e9f0f0")
-                    ]
-                ]
-                [ Board.view
-                    { svgPath = model.boardSvgPath
-                    , onCountryClicked = Just Clicked
-                    , onCountryMouseEnter = Just MouseEntered
-                    , onCountryMouseLeave = Just MouseLeft
-                    , highlightedCoutries =
-                        List.concat
-                            [ model.hoveredCountry
-                                |> Maybe.map List.singleton
-                                |> Maybe.withDefault []
-                            , game.paintedCountries
-                                |> List.map Tuple.first
+                Api.Started game ->
+                    Html.div
+                        [ css
+                            [ Css.height (Css.vh 100)
+                            , Css.width (Css.vw 100)
+                            , Css.position Css.fixed
+                            , Css.top Css.zero
+                            , Css.left Css.zero
+                            , Css.backgroundColor (Css.hex "#e9f0f0")
                             ]
-                    , styles =
-                        [ Css.height (Css.pct 100)
-                        , Css.width (Css.pct 100)
                         ]
-                    }
-                    |> Html.fromUnstyled
-                ]
+                        [ Board.view
+                            { svgPath = model.boardSvgPath
+                            , onCountryClicked = Just Clicked
+                            , onCountryMouseEnter = Just MouseEntered
+                            , onCountryMouseLeave = Just MouseLeft
+                            , highlightedCoutries =
+                                List.concat
+                                    [ hoveredCountry
+                                        |> Maybe.map List.singleton
+                                        |> Maybe.withDefault []
+                                    , game.paintedCountries
+                                        |> List.map Tuple.first
+                                    ]
+                            , styles =
+                                [ Css.height (Css.pct 100)
+                                , Css.width (Css.pct 100)
+                                ]
+                            }
+                            |> Html.fromUnstyled
+                        ]
