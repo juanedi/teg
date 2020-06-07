@@ -1,10 +1,10 @@
 port module Main exposing (main)
 
 import Api
-import Board
 import Browser
 import Country exposing (Country)
 import Css
+import Gameplay
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
 import Html.Styled.Events as Events
@@ -12,7 +12,6 @@ import Http
 import Json.Decode as Decode exposing (Value)
 import Json.Encode as Encode
 import Player exposing (Player)
-import Time
 
 
 port sendPortCommand : Value -> Cmd msg
@@ -47,20 +46,15 @@ type State
     | -- user is deciding which player/color to use
       Lobby (List Player)
     | Joining Player
-    | InsideRoom
-        { room : Api.Room
-        , hoveredCountry : Maybe Country
-        }
+    | WaitingForPlayers
+    | Playing Gameplay.State
 
 
 type Msg
     = JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
     | PlayerPicked Player
-    | PaintCountryResponse (Result Http.Error ())
-    | Clicked Country
-    | MouseEntered Country
-    | MouseLeft Country
+    | GameplayMsg Gameplay.Msg
 
 
 main : Program Flags Model Msg
@@ -160,15 +154,27 @@ update msg model =
                             ( model, Cmd.none )
 
                 Ok (GameStateUpdate room) ->
-                    ( { model
-                        | state =
-                            InsideRoom
-                                { room = room
-                                , hoveredCountry = Nothing
-                                }
-                      }
-                    , Cmd.none
-                    )
+                    case room of
+                        Api.WaitingForPlayers ->
+                            ( { model | state = WaitingForPlayers }
+                            , Cmd.none
+                            )
+
+                        Api.Started game ->
+                            ( { model
+                                | state =
+                                    case model.state of
+                                        WaitingForPlayers ->
+                                            Playing (Gameplay.init game)
+
+                                        Playing gameplayState ->
+                                            Playing (Gameplay.serverUpdate game gameplayState)
+
+                                        _ ->
+                                            model.state
+                              }
+                            , Cmd.none
+                            )
 
                 Err _ ->
                     -- TODO: handle error
@@ -179,94 +185,19 @@ update msg model =
             , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
             )
 
-        PaintCountryResponse result ->
-            -- TODO: handle error
-            ( model, Cmd.none )
-
-        Clicked country ->
+        GameplayMsg gameplayMsg ->
             case model.state of
-                Loading ->
+                Playing gameplayState ->
+                    let
+                        ( updatedGamplayState, cmd ) =
+                            Gameplay.update gameplayMsg gameplayState
+                    in
+                    ( { model | state = Playing updatedGamplayState }
+                    , Cmd.map GameplayMsg cmd
+                    )
+
+                _ ->
                     ( model, Cmd.none )
-
-                Lobby _ ->
-                    ( model, Cmd.none )
-
-                Joining _ ->
-                    ( model, Cmd.none )
-
-                InsideRoom { room } ->
-                    case room of
-                        Api.WaitingForPlayers ->
-                            ( model, Cmd.none )
-
-                        Api.Started { identity } ->
-                            ( model
-                            , Api.postPaint ( identity, country ) PaintCountryResponse
-                            )
-
-        MouseEntered country ->
-            case model.state of
-                Loading ->
-                    ( model, Cmd.none )
-
-                Lobby _ ->
-                    ( model, Cmd.none )
-
-                Joining _ ->
-                    ( model, Cmd.none )
-
-                InsideRoom { room } ->
-                    case room of
-                        Api.WaitingForPlayers ->
-                            ( model, Cmd.none )
-
-                        Api.Started _ ->
-                            ( { model
-                                | state =
-                                    InsideRoom
-                                        { room = room
-                                        , hoveredCountry = Just country
-                                        }
-                              }
-                            , Cmd.none
-                            )
-
-        MouseLeft country ->
-            case model.state of
-                Loading ->
-                    ( model, Cmd.none )
-
-                Lobby _ ->
-                    ( model, Cmd.none )
-
-                Joining _ ->
-                    ( model, Cmd.none )
-
-                InsideRoom { room, hoveredCountry } ->
-                    case room of
-                        Api.WaitingForPlayers ->
-                            ( model, Cmd.none )
-
-                        Api.Started _ ->
-                            ( { model
-                                | state =
-                                    InsideRoom
-                                        { room = room
-                                        , hoveredCountry =
-                                            case hoveredCountry of
-                                                Nothing ->
-                                                    Nothing
-
-                                                Just c ->
-                                                    if c == country then
-                                                        Nothing
-
-                                                    else
-                                                        Just c
-                                        }
-                              }
-                            , Cmd.none
-                            )
 
 
 subscriptions : Model -> Sub Msg
@@ -297,39 +228,10 @@ view model =
         Joining player ->
             Html.text ("Joining as " ++ Player.toUrlSegment player)
 
-        InsideRoom { room, hoveredCountry } ->
-            case room of
-                Api.WaitingForPlayers ->
-                    Html.text "Waiting for other players to join"
+        WaitingForPlayers ->
+            Html.text "Waiting for other players to join"
 
-                Api.Started game ->
-                    Html.div
-                        [ css
-                            [ Css.height (Css.vh 100)
-                            , Css.width (Css.vw 100)
-                            , Css.position Css.fixed
-                            , Css.top Css.zero
-                            , Css.left Css.zero
-                            , Css.backgroundColor (Css.hex "#e9f0f0")
-                            ]
-                        ]
-                        [ Board.view
-                            { svgPath = model.boardSvgPath
-                            , onCountryClicked = Just Clicked
-                            , onCountryMouseEnter = Just MouseEntered
-                            , onCountryMouseLeave = Just MouseLeft
-                            , highlightedCoutries =
-                                List.concat
-                                    [ hoveredCountry
-                                        |> Maybe.map List.singleton
-                                        |> Maybe.withDefault []
-                                    , game.paintedCountries
-                                        |> List.map Tuple.first
-                                    ]
-                            , styles =
-                                [ Css.height (Css.pct 100)
-                                , Css.width (Css.pct 100)
-                                ]
-                            }
-                            |> Html.fromUnstyled
-                        ]
+        Playing gameState ->
+            Html.map
+                GameplayMsg
+                (Gameplay.view model.boardSvgPath gameState)
