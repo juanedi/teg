@@ -46,7 +46,7 @@ type State
     | -- user is deciding which player/color to use
       Lobby (List Player)
     | Joining Player
-    | WaitingForPlayers
+    | WaitingForPlayers (List Player)
     | Playing Gameplay.State
 
 
@@ -150,13 +150,18 @@ update msg model =
                             , Cmd.none
                             )
 
+                        WaitingForPlayers _ ->
+                            ( { model | state = WaitingForPlayers freeSlots }
+                            , Cmd.none
+                            )
+
                         _ ->
                             ( model, Cmd.none )
 
                 Ok (GameStateUpdate room) ->
                     case room of
-                        Api.WaitingForPlayers ->
-                            ( { model | state = WaitingForPlayers }
+                        Api.WaitingForPlayers freeSlots ->
+                            ( { model | state = WaitingForPlayers freeSlots }
                             , Cmd.none
                             )
 
@@ -225,8 +230,17 @@ view model =
         Joining player ->
             Html.text ("Joining as " ++ Player.toUrlSegment player)
 
-        WaitingForPlayers ->
-            Html.text "Waiting for other players to join"
+        WaitingForPlayers freeSlots ->
+            Html.div []
+                [ Html.text "Waiting for other players to join: "
+                , Html.ul []
+                    (List.map
+                        (\slot ->
+                            Html.li [] [ Html.text (Player.toUrlSegment slot) ]
+                        )
+                        freeSlots
+                    )
+                ]
 
         Playing gameState ->
             Html.map
