@@ -128,7 +128,7 @@ broadcastChanges room =
 clientState :: Player -> State -> Client.Room.Room
 clientState player state =
   case state of
-    WaitingForPlayers _ -> Client.Room.WaitingForPlayers
+    WaitingForPlayers _ -> Client.Room.WaitingForPlayers (freeSlots state)
     Started _ gameState ->
       Client.Room.Started (Game.playerState player gameState)
 

@@ -44,7 +44,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
       initLobbySocket()
       break
     case "init_game_socket":
-      sockets.lobby.close()
       initGameSocket(cmd.data)
       break
     default:
