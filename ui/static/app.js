@@ -23,17 +23,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
   }
 
   function initGameSocket(player) {
-    console.log("Initializing websocket for player", player)
+    console.log("game socket: initializing for player", player)
 
     sockets.gameUpdates = new WebSocket(`ws://localhost:5000/game_updates/${player}`)
 
     sockets.gameUpdates.onopen = function (event) {
-      console.log("Connection to websocket succeeded!")
+      console.log("game socket: connection succeeded!")
     }
 
     sockets.gameUpdates.onmessage = function (event) {
       let newState = JSON.parse(event.data)
-      console.log("Got a message!", newState)
+      console.log("game socket: got a message", newState)
       app.ports.portInfo.send({ tag: "game_state_update", data: newState })
     }
   }
