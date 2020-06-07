@@ -164,14 +164,11 @@ update msg model =
                             ( { model
                                 | state =
                                     case model.state of
-                                        WaitingForPlayers ->
-                                            Playing (Gameplay.init game)
-
                                         Playing gameplayState ->
                                             Playing (Gameplay.serverUpdate game gameplayState)
 
                                         _ ->
-                                            model.state
+                                            Playing (Gameplay.init game)
                               }
                             , Cmd.none
                             )
