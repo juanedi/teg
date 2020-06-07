@@ -38,11 +38,11 @@ type alias Flags =
 
 type alias Model =
     { boardSvgPath : String
-    , gameState : GameState
+    , state : State
     }
 
 
-type GameState
+type State
     = Loading
     | -- user is deciding which player/color to use
       Lobby (List Player)
@@ -76,7 +76,7 @@ main =
 init : Flags -> ( Model, Cmd Msg )
 init { boardSvgPath } =
     ( { boardSvgPath = boardSvgPath
-      , gameState = Loading
+      , state = Loading
       }
     , sendPortCommand (encodePortCommand InitLobbySocket)
     )
@@ -125,11 +125,11 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         JoinResponse result ->
-            case model.gameState of
+            case model.state of
                 Joining player ->
                     case result of
                         Ok _ ->
-                            ( { model | gameState = Loading }
+                            ( { model | state = Loading }
                             , InitGameSocket player
                                 |> encodePortCommand
                                 |> sendPortCommand
@@ -145,14 +145,14 @@ update msg model =
         PortInfoReceived jsonValue ->
             case Decode.decodeValue decodePortInfo jsonValue of
                 Ok (LobbyStateUpdate freeSlots) ->
-                    case model.gameState of
+                    case model.state of
                         Loading ->
-                            ( { model | gameState = Lobby freeSlots }
+                            ( { model | state = Lobby freeSlots }
                             , Cmd.none
                             )
 
                         Lobby _ ->
-                            ( { model | gameState = Lobby freeSlots }
+                            ( { model | state = Lobby freeSlots }
                             , Cmd.none
                             )
 
@@ -161,7 +161,7 @@ update msg model =
 
                 Ok (GameStateUpdate room) ->
                     ( { model
-                        | gameState =
+                        | state =
                             InsideRoom
                                 { room = room
                                 , hoveredCountry = Nothing
@@ -175,7 +175,7 @@ update msg model =
                     ( model, Cmd.none )
 
         PlayerPicked player ->
-            ( { model | gameState = Joining player }
+            ( { model | state = Joining player }
             , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
             )
 
@@ -184,7 +184,7 @@ update msg model =
             ( model, Cmd.none )
 
         Clicked country ->
-            case model.gameState of
+            case model.state of
                 Loading ->
                     ( model, Cmd.none )
 
@@ -205,7 +205,7 @@ update msg model =
                             )
 
         MouseEntered country ->
-            case model.gameState of
+            case model.state of
                 Loading ->
                     ( model, Cmd.none )
 
@@ -222,7 +222,7 @@ update msg model =
 
                         Api.Started _ ->
                             ( { model
-                                | gameState =
+                                | state =
                                     InsideRoom
                                         { room = room
                                         , hoveredCountry = Just country
@@ -232,7 +232,7 @@ update msg model =
                             )
 
         MouseLeft country ->
-            case model.gameState of
+            case model.state of
                 Loading ->
                     ( model, Cmd.none )
 
@@ -249,7 +249,7 @@ update msg model =
 
                         Api.Started _ ->
                             ( { model
-                                | gameState =
+                                | state =
                                     InsideRoom
                                         { room = room
                                         , hoveredCountry =
@@ -276,7 +276,7 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
-    case model.gameState of
+    case model.state of
         Loading ->
             Html.text "Joining the game"
 
