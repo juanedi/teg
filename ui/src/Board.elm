@@ -18,12 +18,19 @@ view :
     , onCountryMouseEnter : Maybe (Country -> msg)
     , onCountryMouseLeave : Maybe (Country -> msg)
     , highlightedCoutries : List Country
-    , styles : List Css.Style
     }
     -> Html msg
 view config =
     Html.node "teg-board"
-        (Attr.property "svgPath" (Encode.string config.svgPath) :: attributes config)
+        (List.concat
+            [ [ Attr.property "svgPath" (Encode.string config.svgPath)
+              , Attr.style "width" "100%"
+              , Attr.style "height" "100%"
+              , Attr.style "background" "#e9f0f0"
+              ]
+            , attributes config
+            ]
+        )
         [ [ staticStyles
           , List.concatMap highlightedCountryStyles config.highlightedCoutries
           ]

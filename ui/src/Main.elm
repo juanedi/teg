@@ -1,9 +1,15 @@
 port module Main exposing (main)
 
 import Api
+import Board
 import Browser
+import Browser.Events
 import Country exposing (Country)
 import Css
+import Element exposing (Element)
+import Element.Background
+import Element.Border
+import Element.Input
 import Gameplay
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
@@ -31,14 +37,20 @@ type PortInfo
 
 
 type alias Flags =
-    { boardSvgPath : String
+    { viewport : Viewport
+    , boardSvgPath : String
     }
 
 
 type alias Model =
-    { boardSvgPath : String
+    { viewport : Viewport
+    , boardSvgPath : String
     , state : State
     }
+
+
+type alias Viewport =
+    { width : Int, height : Int }
 
 
 type State
@@ -51,7 +63,8 @@ type State
 
 
 type Msg
-    = JoinResponse (Result Http.Error ())
+    = ViewportChanged { width : Int, height : Int }
+    | JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
     | PlayerPicked Player
     | GameplayMsg Gameplay.Msg
@@ -68,8 +81,9 @@ main =
 
 
 init : Flags -> ( Model, Cmd Msg )
-init { boardSvgPath } =
-    ( { boardSvgPath = boardSvgPath
+init { viewport, boardSvgPath } =
+    ( { viewport = viewport
+      , boardSvgPath = boardSvgPath
       , state = Loading
       }
     , sendPortCommand (encodePortCommand InitLobbySocket)
@@ -118,6 +132,11 @@ encodePortCommand cmd =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ViewportChanged viewport ->
+            ( { model | viewport = viewport }
+            , Cmd.none
+            )
+
         JoinResponse result ->
             case model.state of
                 Joining player ->
@@ -204,7 +223,10 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    portInfo PortInfoReceived
+    Sub.batch
+        [ portInfo PortInfoReceived
+        , Browser.Events.onResize (\w h -> ViewportChanged { width = w, height = h })
+        ]
 
 
 view : Model -> Html Msg
@@ -214,18 +236,12 @@ view model =
             Html.text "Joining the game"
 
         Lobby freeSlots ->
-            Html.div []
-                (List.append
-                    [ Html.text "Please pick a color" ]
-                    (List.map
-                        (\slot ->
-                            Html.button
-                                [ Events.onClick (PlayerPicked slot) ]
-                                [ Html.text (Player.toUrlSegment slot) ]
-                        )
-                        freeSlots
-                    )
-                )
+            { sidebar = viewLobbySidebar freeSlots
+            , board = [ staticBoard model.boardSvgPath ]
+            }
+                |> sidebarLayout
+                |> Element.layout []
+                |> Html.fromUnstyled
 
         Joining player ->
             Html.text ("Joining as " ++ Player.toUrlSegment player)
@@ -246,3 +262,80 @@ view model =
             Html.map
                 GameplayMsg
                 (Gameplay.view model.boardSvgPath gameState)
+
+
+sidebarLayout :
+    { sidebar : List (Element Msg)
+    , board : List (Element Msg)
+    }
+    -> Element Msg
+sidebarLayout { sidebar, board } =
+    Element.row
+        [ Element.width Element.fill
+        , Element.height Element.fill
+        ]
+        [ Element.column
+            [ Element.width (Element.px 300)
+            , Element.spacing 30
+            ]
+            sidebar
+        , Element.column
+            [ Element.width Element.fill
+            , Element.height Element.fill
+            , Element.centerX
+            , Element.Border.glow (Element.rgb 0 0 0) 0.3
+            ]
+            board
+        ]
+
+
+viewLobbySidebar : List Player -> List (Element Msg)
+viewLobbySidebar freeSlots =
+    [ Element.el
+        [ Element.centerX ]
+        (Element.text "Elegir color")
+    , Element.row
+        [ Element.centerX
+        , Element.spacing 10
+        ]
+        (List.map
+            (\slot ->
+                Element.Input.button
+                    [ Element.paddingXY 20 10
+                    , Element.Background.color (Player.color slot |> withAlpha 0.1)
+                    , Element.Border.color (Player.color slot |> withAlpha 0.3)
+                    , Element.Border.width 1
+                    , Element.Border.rounded 2
+                    , Element.mouseOver
+                        [ Element.Background.color (Player.color slot |> withAlpha 0.2)
+                        ]
+                    ]
+                    { onPress = Just (PlayerPicked slot)
+                    , label = Element.text (Player.label slot)
+                    }
+            )
+            freeSlots
+        )
+    ]
+
+
+staticBoard : String -> Element Msg
+staticBoard boardSvgPath =
+    Element.html <|
+        Board.view
+            { svgPath = boardSvgPath
+            , onCountryClicked = Nothing
+            , onCountryMouseEnter = Nothing
+            , onCountryMouseLeave = Nothing
+            , highlightedCoutries = []
+            }
+
+
+withAlpha : Float -> { red : Float, green : Float, blue : Float } -> Element.Color
+withAlpha alpha rgb =
+    Element.fromRgb
+        { red = rgb.red
+        , green = rgb.green
+        , blue = rgb.blue
+        , alpha = alpha
+        }

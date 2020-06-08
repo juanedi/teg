@@ -85,7 +85,6 @@ view boardSvgPath state =
             , Css.position Css.fixed
             , Css.top Css.zero
             , Css.left Css.zero
-            , Css.backgroundColor (Css.hex "#e9f0f0")
             ]
         ]
         [ Board.view
@@ -101,10 +100,6 @@ view boardSvgPath state =
                     , state.game.paintedCountries
                         |> List.map Tuple.first
                     ]
-            , styles =
-                [ Css.height (Css.pct 100)
-                , Css.width (Css.pct 100)
-                ]
             }
             |> Html.fromUnstyled
         ]
