@@ -1,7 +1,10 @@
 document.addEventListener('DOMContentLoaded', (event) => {
   const app = Elm.Main.init({
     node: document.getElementById('elm-host'),
-    flags: { boardSvgPath: "/map.svg" }
+    flags: {
+      viewport: { width: window.innerWidth, height: window.innerHeight},
+      boardSvgPath: "/map.svg"
+    }
   })
 
   const sockets = {}
