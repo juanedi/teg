@@ -7,9 +7,10 @@ import Browser.Events
 import Country exposing (Country)
 import Css
 import Element exposing (Element)
-import Element.Background
-import Element.Border
-import Element.Input
+import Element.Background as Background
+import Element.Border as Border
+import Element.Font as Font
+import Element.Input as Input
 import Gameplay
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
@@ -233,7 +234,12 @@ view : Model -> Html Msg
 view model =
     case model.state of
         Loading ->
-            Html.text "Joining the game"
+            { sidebar = []
+            , board = [ staticBoard model.boardSvgPath ]
+            }
+                |> sidebarLayout
+                |> Element.layout []
+                |> Html.fromUnstyled
 
         Lobby freeSlots ->
             { sidebar = viewLobbySidebar freeSlots
@@ -244,19 +250,20 @@ view model =
                 |> Html.fromUnstyled
 
         Joining player ->
-            Html.text ("Joining as " ++ Player.toUrlSegment player)
+            { sidebar = []
+            , board = [ staticBoard model.boardSvgPath ]
+            }
+                |> sidebarLayout
+                |> Element.layout []
+                |> Html.fromUnstyled
 
         WaitingForPlayers freeSlots ->
-            Html.div []
-                [ Html.text "Waiting for other players to join: "
-                , Html.ul []
-                    (List.map
-                        (\slot ->
-                            Html.li [] [ Html.text (Player.toUrlSegment slot) ]
-                        )
-                        freeSlots
-                    )
-                ]
+            { sidebar = [ Element.paragraph [ Element.centerX ] [ Element.text "Experando que se sumen otros jugadores" ] ]
+            , board = [ staticBoard model.boardSvgPath ]
+            }
+                |> sidebarLayout
+                |> Element.layout []
+                |> Html.fromUnstyled
 
         Playing gameState ->
             Html.map
@@ -275,15 +282,17 @@ sidebarLayout { sidebar, board } =
         , Element.height Element.fill
         ]
         [ Element.column
-            [ Element.width (Element.px 300)
+            [ Element.width (Element.px 250)
+            , Element.paddingXY 10 20
             , Element.spacing 30
+            , Font.size 14
             ]
             sidebar
         , Element.column
             [ Element.width Element.fill
             , Element.height Element.fill
             , Element.centerX
-            , Element.Border.glow (Element.rgb 0 0 0) 0.3
+            , Border.glow (Element.rgb 0 0 0) 0.3
             ]
             board
         ]
@@ -300,14 +309,14 @@ viewLobbySidebar freeSlots =
         ]
         (List.map
             (\slot ->
-                Element.Input.button
-                    [ Element.paddingXY 20 10
-                    , Element.Background.color (Player.color slot |> withAlpha 0.1)
-                    , Element.Border.color (Player.color slot |> withAlpha 0.3)
-                    , Element.Border.width 1
-                    , Element.Border.rounded 2
+                Input.button
+                    [ Element.padding 10
+                    , Background.color (Player.color slot |> withAlpha 0.1)
+                    , Border.color (Player.color slot |> withAlpha 0.3)
+                    , Border.width 1
+                    , Border.rounded 2
                     , Element.mouseOver
-                        [ Element.Background.color (Player.color slot |> withAlpha 0.2)
+                        [ Background.color (Player.color slot |> withAlpha 0.2)
                         ]
                     ]
                     { onPress = Just (PlayerPicked slot)
