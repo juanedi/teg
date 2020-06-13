@@ -20,6 +20,7 @@ library
                      , Server
   other-modules:       Client.Game
                      , Client.Room
+                     , Client.ConnectionStates
                      , Game
                      , Game.Country
                      , Game.Player

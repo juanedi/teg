@@ -3,7 +3,7 @@ module Game.Room
     ClientChannel,
     State,
     Game.Room.init,
-    freeSlots,
+    connectionStates,
     subscribe,
     join,
     broadcastChanges,
@@ -14,6 +14,7 @@ module Game.Room
   )
 where
 
+import Client.ConnectionStates (ConnectionStates (..))
 import qualified Client.Room
 import Control.Concurrent.STM (STM)
 import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChan, writeTChan)
@@ -52,19 +53,34 @@ init = do
         state = WaitingForPlayers (Waiting, Waiting)
       }
 
-freeSlots :: State -> [Player]
-freeSlots state =
+connectionStates :: State -> ConnectionStates
+connectionStates state =
   case state of
     WaitingForPlayers (Waiting, Waiting) ->
-      [Red, Blue]
+      ConnectionStates
+        { connectedPlayers = [],
+          freeSlots = [Red, Blue]
+        }
     WaitingForPlayers (Waiting, _) ->
-      [Red]
+      ConnectionStates
+        { connectedPlayers = [Blue],
+          freeSlots = [Red]
+        }
     WaitingForPlayers (_, Waiting) ->
-      [Blue]
+      ConnectionStates
+        { connectedPlayers = [Red],
+          freeSlots = [Blue]
+        }
     WaitingForPlayers _ ->
-      []
+      ConnectionStates
+        { connectedPlayers = [Red, Blue],
+          freeSlots = []
+        }
     Started _ _ ->
-      []
+      ConnectionStates
+        { connectedPlayers = [Red, Blue],
+          freeSlots = []
+        }
 
 subscribe :: Room -> STM (TChan State)
 subscribe room =
@@ -128,7 +144,7 @@ broadcastChanges room =
 clientState :: Player -> State -> Client.Room.Room
 clientState player state =
   case state of
-    WaitingForPlayers _ -> Client.Room.WaitingForPlayers (freeSlots state)
+    WaitingForPlayers _ -> Client.Room.WaitingForPlayers (connectionStates state)
     Started _ gameState ->
       Client.Room.Started (Game.playerState player gameState)
 

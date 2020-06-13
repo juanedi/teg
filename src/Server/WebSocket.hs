@@ -7,6 +7,7 @@ module Server.WebSocket
   )
 where
 
+import Client.ConnectionStates (ConnectionStates)
 import qualified Client.Room
 import Conduit (ResourceT)
 import qualified Control.Concurrent.STM as STM
@@ -38,7 +39,7 @@ type UpdatesConduit =
     ()
 
 type Routes =
-  "lobby" :> WebSocketConduit () [Player]
+  "lobby" :> WebSocketConduit () ConnectionStates
     :<|> "game_updates" :> Capture "player" Player :> WebSocketConduit () Client.Room.Room
 
 server :: State -> Server Routes
@@ -46,7 +47,7 @@ server state =
   lobby state
     :<|> gameUpdates state
 
-lobby :: State -> ConduitT () [Player] (ResourceT IO) ()
+lobby :: State -> ConduitT () ConnectionStates (ResourceT IO) ()
 lobby state = do
   (room, chan) <-
     State.runSTM $
@@ -56,10 +57,10 @@ lobby state = do
         pure (room, chan)
   lobbyLoop chan (Game.Room.state room)
 
-lobbyLoop :: STM.TChan Game.Room.State -> Game.Room.State -> ConduitT () [Player] (ResourceT IO) ()
+lobbyLoop :: STM.TChan Game.Room.State -> Game.Room.State -> ConduitT () ConnectionStates (ResourceT IO) ()
 lobbyLoop chan roomState = do
-  let freeSlots = Game.Room.freeSlots roomState
-  yield freeSlots
+  let connectionStates = Game.Room.connectionStates roomState
+  yield connectionStates
   roomState' <- State.runSTM (readTChan chan)
   lobbyLoop chan roomState'
 
