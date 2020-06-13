@@ -307,6 +307,53 @@ sidebarLayout { viewport, sidebar, board } =
 
 viewColorPicker : List Player -> Element Msg
 viewColorPicker freeSlots =
+    viewModal
+        (if List.isEmpty freeSlots then
+            [ Element.el
+                [ Element.centerX
+                , Font.size 16
+                , Font.bold
+                ]
+                (Element.text "No quedan lugares 💩")
+            ]
+
+         else
+            [ Element.el
+                [ Element.centerX
+                , Font.size 16
+                , Font.bold
+                ]
+                (Element.text "Elegir color")
+            , Element.row
+                [ Element.centerX
+                , Element.spacing 10
+                ]
+                (List.map
+                    (\slot ->
+                        Input.button
+                            [ Element.width (Element.px 40)
+                            , Element.height (Element.px 40)
+                            , Background.color (Player.color slot |> withAlpha 0.1)
+                            , Border.color (Player.color slot |> withAlpha 0.3)
+                            , Border.width 1
+                            , Border.rounded 20
+                            , Font.size 12
+                            , Element.mouseOver
+                                [ Background.color (Player.color slot |> withAlpha 0.4)
+                                ]
+                            ]
+                            { onPress = Just (PlayerPicked slot)
+                            , label = Element.text ""
+                            }
+                    )
+                    freeSlots
+                )
+            ]
+        )
+
+
+viewModal : List (Element Msg) -> Element Msg
+viewModal content =
     Element.column
         [ Element.centerX
         , Element.centerY
@@ -322,37 +369,7 @@ viewColorPicker freeSlots =
             , color = Element.rgb 0 0 0
             }
         ]
-        [ Element.el
-            [ Element.centerX
-            , Font.size 16
-            , Font.bold
-            ]
-            (Element.text "Elegir color")
-        , Element.row
-            [ Element.centerX
-            , Element.spacing 10
-            ]
-            (List.map
-                (\slot ->
-                    Input.button
-                        [ Element.width (Element.px 40)
-                        , Element.height (Element.px 40)
-                        , Background.color (Player.color slot |> withAlpha 0.1)
-                        , Border.color (Player.color slot |> withAlpha 0.3)
-                        , Border.width 1
-                        , Border.rounded 20
-                        , Font.size 12
-                        , Element.mouseOver
-                            [ Background.color (Player.color slot |> withAlpha 0.4)
-                            ]
-                        ]
-                        { onPress = Just (PlayerPicked slot)
-                        , label = Element.text ""
-                        }
-                )
-                freeSlots
-            )
-        ]
+        content
 
 
 viewConnectedPlayers : List Player -> Element Msg
