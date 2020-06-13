@@ -12,9 +12,9 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Gameplay
-import Html.Styled as Html exposing (Html)
-import Html.Styled.Attributes exposing (css)
-import Html.Styled.Events as Events
+import Html exposing (Html)
+import Html.Attributes
+import Html.Events as Events
 import Http
 import Json.Decode as Decode exposing (Value)
 import Json.Encode as Encode
@@ -75,7 +75,7 @@ main : Program Flags Model Msg
 main =
     Browser.element
         { init = init
-        , view = view >> Html.toUnstyled
+        , view = view
         , update = update
         , subscriptions = subscriptions
         }
@@ -240,7 +240,6 @@ view model =
             }
                 |> sidebarLayout
                 |> Element.layout []
-                |> Html.fromUnstyled
 
         Lobby connectionStates ->
             Element.layout
@@ -251,7 +250,6 @@ view model =
                     , board = [ staticBoard model.boardSvgPath ]
                     }
                 )
-                |> Html.fromUnstyled
 
         Joining player ->
             { viewport = model.viewport
@@ -260,7 +258,6 @@ view model =
             }
                 |> sidebarLayout
                 |> Element.layout []
-                |> Html.fromUnstyled
 
         WaitingForPlayers connectionStates ->
             { viewport = model.viewport
@@ -269,12 +266,19 @@ view model =
             }
                 |> sidebarLayout
                 |> Element.layout []
-                |> Html.fromUnstyled
 
         Playing gameState ->
-            Html.map
-                GameplayMsg
-                (Gameplay.view model.boardSvgPath gameState)
+            { viewport = model.viewport
+            , sidebar = []
+            , board =
+                [ gameState
+                    |> Gameplay.view model.boardSvgPath
+                    |> Element.html
+                    |> Element.map GameplayMsg
+                ]
+            }
+                |> sidebarLayout
+                |> Element.layout []
 
 
 sidebarLayout :
