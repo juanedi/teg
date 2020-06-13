@@ -11,8 +11,8 @@ import Api
 import Board
 import Country exposing (Country)
 import Css
-import Html.Styled as Html exposing (Html)
-import Html.Styled.Attributes exposing (css)
+import Html exposing (Html)
+import Html.Attributes
 import Http
 
 
@@ -78,28 +78,17 @@ update msg state =
 
 view : String -> State -> Html Msg
 view boardSvgPath state =
-    Html.div
-        [ css
-            [ Css.height (Css.vh 100)
-            , Css.width (Css.vw 100)
-            , Css.position Css.fixed
-            , Css.top Css.zero
-            , Css.left Css.zero
-            ]
-        ]
-        [ Board.view
-            { svgPath = boardSvgPath
-            , onCountryClicked = Just ClickedCountry
-            , onCountryMouseEnter = Just MouseEntered
-            , onCountryMouseLeave = Just MouseLeft
-            , highlightedCoutries =
-                List.concat
-                    [ state.hoveredCountry
-                        |> Maybe.map List.singleton
-                        |> Maybe.withDefault []
-                    , state.game.paintedCountries
-                        |> List.map Tuple.first
-                    ]
-            }
-            |> Html.fromUnstyled
-        ]
+    Board.view
+        { svgPath = boardSvgPath
+        , onCountryClicked = Just ClickedCountry
+        , onCountryMouseEnter = Just MouseEntered
+        , onCountryMouseLeave = Just MouseLeft
+        , highlightedCoutries =
+            List.concat
+                [ state.hoveredCountry
+                    |> Maybe.map List.singleton
+                    |> Maybe.withDefault []
+                , state.game.paintedCountries
+                    |> List.map Tuple.first
+                ]
+        }
