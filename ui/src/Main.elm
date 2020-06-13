@@ -33,7 +33,7 @@ type PortCommand
 
 
 type PortInfo
-    = LobbyStateUpdate (List Player)
+    = LobbyStateUpdate Api.ConnectionStates
     | GameStateUpdate Api.Room
 
 
@@ -57,9 +57,9 @@ type alias Viewport =
 type State
     = Loading
     | -- user is deciding which player/color to use
-      Lobby (List Player)
+      Lobby Api.ConnectionStates
     | Joining Player
-    | WaitingForPlayers (List Player)
+    | WaitingForPlayers Api.ConnectionStates
     | Playing Gameplay.State
 
 
@@ -105,7 +105,7 @@ decodePortInfo =
                     "lobby_state_update" ->
                         Decode.field
                             "data"
-                            (Decode.map LobbyStateUpdate (Decode.list Api.jsonDecPlayer))
+                            (Decode.map LobbyStateUpdate Api.jsonDecConnectionStates)
 
                     _ ->
                         Decode.fail ("Could interpret port info with tag: " ++ tag)
@@ -158,20 +158,20 @@ update msg model =
 
         PortInfoReceived jsonValue ->
             case Decode.decodeValue decodePortInfo jsonValue of
-                Ok (LobbyStateUpdate freeSlots) ->
+                Ok (LobbyStateUpdate connectionStates) ->
                     case model.state of
                         Loading ->
-                            ( { model | state = Lobby freeSlots }
+                            ( { model | state = Lobby connectionStates }
                             , Cmd.none
                             )
 
                         Lobby _ ->
-                            ( { model | state = Lobby freeSlots }
+                            ( { model | state = Lobby connectionStates }
                             , Cmd.none
                             )
 
                         WaitingForPlayers _ ->
-                            ( { model | state = WaitingForPlayers freeSlots }
+                            ( { model | state = WaitingForPlayers connectionStates }
                             , Cmd.none
                             )
 
@@ -180,8 +180,8 @@ update msg model =
 
                 Ok (GameStateUpdate room) ->
                     case room of
-                        Api.WaitingForPlayers freeSlots ->
-                            ( { model | state = WaitingForPlayers freeSlots }
+                        Api.WaitingForPlayers connectionStates ->
+                            ( { model | state = WaitingForPlayers connectionStates }
                             , Cmd.none
                             )
 
@@ -234,31 +234,37 @@ view : Model -> Html Msg
 view model =
     case model.state of
         Loading ->
-            { sidebar = []
+            { viewport = model.viewport
+            , sidebar = []
             , board = [ staticBoard model.boardSvgPath ]
             }
                 |> sidebarLayout
                 |> Element.layout []
                 |> Html.fromUnstyled
 
-        Lobby freeSlots ->
-            { sidebar = viewLobbySidebar freeSlots
-            , board = [ staticBoard model.boardSvgPath ]
-            }
-                |> sidebarLayout
-                |> Element.layout []
+        Lobby connectionStates ->
+            Element.layout
+                [ Element.inFront (viewColorPicker connectionStates.freeSlots) ]
+                (sidebarLayout
+                    { viewport = model.viewport
+                    , sidebar = [ viewConnectedPlayers connectionStates.connectedPlayers ]
+                    , board = [ staticBoard model.boardSvgPath ]
+                    }
+                )
                 |> Html.fromUnstyled
 
         Joining player ->
-            { sidebar = []
+            { viewport = model.viewport
+            , sidebar = []
             , board = [ staticBoard model.boardSvgPath ]
             }
                 |> sidebarLayout
                 |> Element.layout []
                 |> Html.fromUnstyled
 
-        WaitingForPlayers freeSlots ->
-            { sidebar = [ Element.paragraph [ Element.centerX ] [ Element.text "Experando que se sumen otros jugadores" ] ]
+        WaitingForPlayers connectionStates ->
+            { viewport = model.viewport
+            , sidebar = [ viewConnectedPlayers connectionStates.connectedPlayers ]
             , board = [ staticBoard model.boardSvgPath ]
             }
                 |> sidebarLayout
@@ -272,18 +278,19 @@ view model =
 
 
 sidebarLayout :
-    { sidebar : List (Element Msg)
+    { viewport : Viewport
+    , sidebar : List (Element Msg)
     , board : List (Element Msg)
     }
     -> Element Msg
-sidebarLayout { sidebar, board } =
+sidebarLayout { viewport, sidebar, board } =
     Element.row
         [ Element.width Element.fill
         , Element.height Element.fill
         ]
         [ Element.column
             [ Element.width (Element.px 250)
-            , Element.paddingXY 10 20
+            , Element.height (Element.fillPortion 2)
             , Element.spacing 30
             , Font.size 14
             ]
@@ -298,46 +305,112 @@ sidebarLayout { sidebar, board } =
         ]
 
 
-viewLobbySidebar : List Player -> List (Element Msg)
-viewLobbySidebar freeSlots =
-    [ Element.el
-        [ Element.centerX ]
-        (Element.text "Elegir color")
-    , Element.row
+viewColorPicker : List Player -> Element Msg
+viewColorPicker freeSlots =
+    Element.column
         [ Element.centerX
-        , Element.spacing 10
+        , Element.centerY
+        , Element.width (Element.shrink |> Element.minimum 200)
+        , Element.padding 20
+        , Element.spacing 20
+        , Background.color (Element.rgb255 255 255 255)
+        , Border.rounded 4
+        , Border.shadow
+            { offset = ( 1, 1 )
+            , size = 1
+            , blur = 3
+            , color = Element.rgb 0 0 0
+            }
         ]
-        (List.map
-            (\slot ->
-                Input.button
-                    [ Element.padding 10
-                    , Background.color (Player.color slot |> withAlpha 0.1)
-                    , Border.color (Player.color slot |> withAlpha 0.3)
-                    , Border.width 1
-                    , Border.rounded 2
-                    , Element.mouseOver
-                        [ Background.color (Player.color slot |> withAlpha 0.2)
+        [ Element.el
+            [ Element.centerX
+            , Font.size 16
+            , Font.bold
+            ]
+            (Element.text "Elegir color")
+        , Element.row
+            [ Element.centerX
+            , Element.spacing 10
+            ]
+            (List.map
+                (\slot ->
+                    Input.button
+                        [ Element.width (Element.px 40)
+                        , Element.height (Element.px 40)
+                        , Background.color (Player.color slot |> withAlpha 0.1)
+                        , Border.color (Player.color slot |> withAlpha 0.3)
+                        , Border.width 1
+                        , Border.rounded 20
+                        , Font.size 12
+                        , Element.mouseOver
+                            [ Background.color (Player.color slot |> withAlpha 0.4)
+                            ]
                         ]
-                    ]
-                    { onPress = Just (PlayerPicked slot)
-                    , label = Element.text (Player.label slot)
-                    }
+                        { onPress = Just (PlayerPicked slot)
+                        , label = Element.text ""
+                        }
+                )
+                freeSlots
             )
-            freeSlots
+        ]
+
+
+viewConnectedPlayers : List Player -> Element Msg
+viewConnectedPlayers connectedPlayers =
+    let
+        viewPlayer player =
+            Element.row
+                [ Element.spacing 10
+                , Element.padding 10
+                , Element.width Element.fill
+                , Background.color (Player.color player |> withAlpha 0.1)
+                ]
+                [ Element.el
+                    [ Element.height (Element.px 10)
+                    , Element.width (Element.px 10)
+                    , Background.color (Player.color player |> withAlpha 1)
+                    , Border.rounded 5
+                    ]
+                    (Element.text "")
+                , Element.text (Player.label player)
+                ]
+    in
+    Element.column
+        [ Element.width Element.fill
+        , Element.height (Element.fillPortion 1)
+        , Border.glow (Element.rgb 0 0 0) 0.3
+        ]
+        (if List.isEmpty connectedPlayers then
+            [ Element.column
+                [ Font.size 13
+                , Element.centerX
+                , Element.centerY
+                , Font.color (Element.rgb255 150 150 150)
+                ]
+                [ Element.text "Esperado jugadores" ]
+            ]
+
+         else
+            List.map viewPlayer connectedPlayers
         )
-    ]
 
 
 staticBoard : String -> Element Msg
 staticBoard boardSvgPath =
-    Element.html <|
-        Board.view
-            { svgPath = boardSvgPath
-            , onCountryClicked = Nothing
-            , onCountryMouseEnter = Nothing
-            , onCountryMouseLeave = Nothing
-            , highlightedCoutries = []
-            }
+    Element.el
+        [ Element.alpha 0.4
+        , Element.height Element.fill
+        , Element.width Element.fill
+        ]
+        (Element.html <|
+            Board.view
+                { svgPath = boardSvgPath
+                , onCountryClicked = Nothing
+                , onCountryMouseEnter = Nothing
+                , onCountryMouseLeave = Nothing
+                , highlightedCoutries = []
+                }
+        )
 
 
 withAlpha : Float -> { red : Float, green : Float, blue : Float } -> Element.Color

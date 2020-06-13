@@ -4,6 +4,7 @@
 
 module Codegen (run) where
 
+import qualified Client.ConnectionStates
 import qualified Client.Game
 import qualified Client.Room
 import qualified Game
@@ -26,6 +27,7 @@ run =
             DefineElm (Proxy :: Proxy Game.Player),
             DefineElm (Proxy :: Proxy Client.Game.Game),
             DefineElm (Proxy :: Proxy Client.Game.Instructions),
+            DefineElm (Proxy :: Proxy Client.ConnectionStates.ConnectionStates),
             DefineElm (Proxy :: Proxy Client.Room.Room)
           ]
           (Proxy :: Proxy APIRoutes)
