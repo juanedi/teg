@@ -3,7 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Game.Player (Player (..)) where
+module Game.Player (Player (..), Game.Player.all) where
 
 import Data.Text (Text)
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
@@ -13,7 +13,7 @@ import Web.HttpApiData (FromHttpApiData (..))
 data Player
   = Red
   | Blue
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''Player
 
@@ -26,3 +26,6 @@ instance FromHttpApiData Player where
         if fragment == "blue"
           then Right Blue
           else Left ("Could not interpret player from url fragment '" <> fragment <> "''")
+
+all :: [Player]
+all = [Red, Blue]
