@@ -25,18 +25,42 @@ toUrlSegment player =
 label : Player -> String
 label player =
     case player of
+        Api.Blue ->
+            "Azul"
+
         Api.Red ->
             "Rojo"
 
-        Api.Blue ->
-            "Azul"
+        Api.Black ->
+            "Negro"
+
+        Api.Yellow ->
+            "Amarillo"
+
+        Api.Green ->
+            "Verde"
+
+        Api.Magenta ->
+            "Magenta"
 
 
 color : Player -> { red : Float, green : Float, blue : Float }
 color player =
     case player of
+        Api.Blue ->
+            { red = 0, green = 0, blue = 1 }
+
         Api.Red ->
             { red = 1, green = 0, blue = 0 }
 
-        Api.Blue ->
-            { red = 0, green = 0, blue = 1 }
+        Api.Black ->
+            { red = 0, green = 0, blue = 0 }
+
+        Api.Yellow ->
+            { red = 1, green = 1, blue = 0 }
+
+        Api.Green ->
+            { red = 0, green = 1, blue = 0 }
+
+        Api.Magenta ->
+            { red = 1, green = 0, blue = 1 }

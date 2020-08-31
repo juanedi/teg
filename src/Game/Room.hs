@@ -23,6 +23,7 @@ import qualified Data.Map as Map
 import qualified Game
 import Game.Player (Player)
 import qualified Game.Player as Player
+import qualified Game.TurnList as TurnList
 import Result (Error (..), Result (..))
 
 -- TODO: if a client disconnects, move to a new PlayersLeft state or similar
@@ -118,7 +119,12 @@ playerConnected player room =
                       Nothing ->
                         WaitingForPlayers connectionStates_
                       Just playerChannels ->
-                        Started playerChannels Game.init
+                        case Map.keys playerChannels of
+                          [] ->
+                            -- NOTE: this shouldn't happen!
+                            WaitingForPlayers connectionStates_
+                          firstPlayer : otherPlayers ->
+                            Started playerChannels (Game.init (TurnList.init firstPlayer otherPlayers))
                   }
               )
         _ ->
