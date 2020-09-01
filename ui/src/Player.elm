@@ -44,23 +44,23 @@ label player =
             "Magenta"
 
 
-color : Player -> { red : Float, green : Float, blue : Float }
+color : Player -> { red : Int, green : Int, blue : Int }
 color player =
     case player of
         Api.Blue ->
-            { red = 0, green = 0, blue = 1 }
+            { red = 0, green = 0, blue = 255 }
 
         Api.Red ->
-            { red = 1, green = 0, blue = 0 }
+            { red = 255, green = 0, blue = 0 }
 
         Api.Black ->
             { red = 0, green = 0, blue = 0 }
 
         Api.Yellow ->
-            { red = 1, green = 1, blue = 0 }
+            { red = 255, green = 255, blue = 0 }
 
         Api.Green ->
-            { red = 0, green = 1, blue = 0 }
+            { red = 0, green = 255, blue = 0 }
 
         Api.Magenta ->
-            { red = 1, green = 0, blue = 1 }
+            { red = 255, green = 0, blue = 255 }
