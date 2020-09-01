@@ -60,6 +60,8 @@ type State
       Lobby Api.ConnectionStates
     | Joining Player
     | WaitingForPlayers Api.ConnectionStates
+    | ReadyToStart Api.ConnectionStates
+    | Starting Api.ConnectionStates
     | Playing Gameplay.State
 
 
@@ -68,6 +70,8 @@ type Msg
     | JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
     | PlayerPicked Player
+    | StartGameClicked
+    | StartGameResponse (Result Http.Error ())
     | GameplayMsg Gameplay.Msg
 
 
@@ -185,6 +189,11 @@ update msg model =
                             , Cmd.none
                             )
 
+                        Api.ReadyToStart connectionStates ->
+                            ( { model | state = ReadyToStart connectionStates }
+                            , Cmd.none
+                            )
+
                         Api.Started game ->
                             ( { model
                                 | state =
@@ -206,6 +215,20 @@ update msg model =
             ( { model | state = Joining player }
             , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
             )
+
+        StartGameClicked ->
+            case model.state of
+                ReadyToStart connectionStates ->
+                    ( { model | state = Starting connectionStates }
+                    , Api.postStart StartGameResponse
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        StartGameResponse result ->
+            -- TODO: handle error. websocket should take care of the happy path
+            ( model, Cmd.none )
 
         GameplayMsg gameplayMsg ->
             case model.state of
@@ -246,7 +269,11 @@ view model =
                 [ Element.inFront (viewColorPicker connectionStates.freeSlots) ]
                 (sidebarLayout
                     { viewport = model.viewport
-                    , sidebar = [ viewConnectedPlayers connectionStates.connectedPlayers ]
+                    , sidebar =
+                        [ viewConnectedPlayers
+                            { fillPortion = 1 }
+                            connectionStates.connectedPlayers
+                        ]
                     , board = [ staticBoard model.boardSvgPath ]
                     }
                 )
@@ -261,7 +288,41 @@ view model =
 
         WaitingForPlayers connectionStates ->
             { viewport = model.viewport
-            , sidebar = [ viewConnectedPlayers connectionStates.connectedPlayers ]
+            , sidebar =
+                [ viewConnectedPlayers
+                    { fillPortion = 1 }
+                    connectionStates.connectedPlayers
+                ]
+            , board = [ staticBoard model.boardSvgPath ]
+            }
+                |> sidebarLayout
+                |> Element.layout []
+
+        ReadyToStart connectionStates ->
+            { viewport = model.viewport
+            , sidebar =
+                [ viewConnectedPlayers
+                    { fillPortion = 4 }
+                    connectionStates.connectedPlayers
+                , viewStartButton
+                    { fillPortion = 1 }
+                    True
+                ]
+            , board = [ staticBoard model.boardSvgPath ]
+            }
+                |> sidebarLayout
+                |> Element.layout []
+
+        Starting connectionStates ->
+            { viewport = model.viewport
+            , sidebar =
+                [ viewConnectedPlayers
+                    { fillPortion = 4 }
+                    connectionStates.connectedPlayers
+                , viewStartButton
+                    { fillPortion = 1 }
+                    False
+                ]
             , board = [ staticBoard model.boardSvgPath ]
             }
                 |> sidebarLayout
@@ -376,8 +437,8 @@ viewModal content =
         content
 
 
-viewConnectedPlayers : List Player -> Element Msg
-viewConnectedPlayers connectedPlayers =
+viewConnectedPlayers : { fillPortion : Int } -> List Player -> Element Msg
+viewConnectedPlayers { fillPortion } connectedPlayers =
     let
         viewPlayer player =
             Element.row
@@ -398,7 +459,7 @@ viewConnectedPlayers connectedPlayers =
     in
     Element.column
         [ Element.width Element.fill
-        , Element.height (Element.fillPortion 1)
+        , Element.height (Element.fillPortion fillPortion)
         , Border.glow (Element.rgb 0 0 0) 0.3
         ]
         (if List.isEmpty connectedPlayers then
@@ -413,6 +474,24 @@ viewConnectedPlayers connectedPlayers =
 
          else
             List.map viewPlayer connectedPlayers
+        )
+
+
+viewStartButton : { fillPortion : Int } -> Bool -> Element Msg
+viewStartButton { fillPortion } isEnabled =
+    Input.button
+        [ Element.centerX
+        , Element.centerY
+        ]
+        (if isEnabled then
+            { onPress = Just StartGameClicked
+            , label = Element.text "Start game!"
+            }
+
+         else
+            { onPress = Nothing
+            , label = Element.text "Starting..."
+            }
         )
 
 

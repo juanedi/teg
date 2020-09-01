@@ -25,6 +25,7 @@ library
                      , Game.Country
                      , Game.Player
                      , Game.Room
+                     , Game.TurnList
                      , Result
                      , Server.Serialization
                      , Server.State
