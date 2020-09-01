@@ -10,6 +10,7 @@ import Elm.Derive (defaultOptions, deriveBoth)
 
 data Room
   = WaitingForPlayers ConnectionStates
+  | ReadyToStart ConnectionStates
   | Started Client.Game.Game
 
 deriveBoth defaultOptions ''Room

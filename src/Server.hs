@@ -35,6 +35,7 @@ import WaiAppStatic.Types (ssUseHash)
 
 type APIRoutes =
   "join" :> Capture "player" Text :> Post '[JSON] ()
+    :<|> "start" :> Post '[JSON] ()
     :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> PostNoContent '[JSON] ()
 
 type StaticContentRoutes =
@@ -89,6 +90,7 @@ api = Proxy
 gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
 gameApiServer runAction =
   runAction . joinGame
+    :<|> runAction startGame
     :<|> runAction . paintCountry
 
 staticContentServer :: Server StaticContentRoutes
@@ -105,6 +107,10 @@ joinGame playerId room =
       ( Left (InvalidMove ("Could not parse player from url param")),
         room
       )
+
+startGame :: Action ()
+startGame room =
+  Room.startGame room
 
 paintCountry :: (Player, Country) -> Action ()
 paintCountry (player, country) =
