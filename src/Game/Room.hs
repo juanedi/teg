@@ -6,6 +6,7 @@ module Game.Room
     connectionStates,
     subscribe,
     join,
+    startGame,
     broadcastChanges,
     clientState,
     updateGame,
@@ -103,6 +104,27 @@ join player room =
         room
       )
 
+startGame :: Room -> Result Room ()
+startGame room =
+  case state room of
+    WaitingForPlayers connectionStates ->
+      case checkReady connectionStates of
+        Nothing ->
+          (Left (InvalidMove "Still waiting for players to join or connect"), room)
+        Just playerChannels ->
+          case Map.keys playerChannels of
+            [] ->
+              -- NOTE: this shouldn't happen!
+              (Left (InvalidMove "Still waiting for players to join or connect"), room)
+            firstPlayer : otherPlayers ->
+              ( Left (InvalidMove "Still waiting for players to join or connect"),
+                room {state = Started playerChannels (Game.init (TurnList.init firstPlayer otherPlayers))}
+              )
+    Started _ _ ->
+      ( Left (InvalidMove "Trying to start a game that has already started"),
+        room
+      )
+
 playerConnected :: Player -> Room -> STM (Maybe ClientChannel, Room)
 playerConnected player room =
   case state room of
@@ -114,18 +136,7 @@ playerConnected player room =
             let connectionStates_ = Map.insert player (Connected playerChannel) connectionStates
             pure
               ( Just playerChannel,
-                room
-                  { state = case checkReady connectionStates_ of
-                      Nothing ->
-                        WaitingForPlayers connectionStates_
-                      Just playerChannels ->
-                        case Map.keys playerChannels of
-                          [] ->
-                            -- NOTE: this shouldn't happen!
-                            WaitingForPlayers connectionStates_
-                          firstPlayer : otherPlayers ->
-                            Started playerChannels (Game.init (TurnList.init firstPlayer otherPlayers))
-                  }
+                room {state = WaitingForPlayers connectionStates_}
               )
         _ ->
           pure (Nothing, room)
@@ -134,11 +145,7 @@ playerConnected player room =
 
 checkReady :: Map Player ConnectionState -> Maybe (Map Player ClientChannel)
 checkReady connectionStates =
-  let -- TODO: for the moment we start the game as soon as there are two connected
-      -- players change this so that we start when the minimum is reached and
-      -- someone clicks a "start game" button.
-      expectedPlayerCount = 2
-      playerChannels =
+  let playerChannels =
         foldr
           ( \player result ->
               case getConnectionState player connectionStates of
@@ -147,7 +154,7 @@ checkReady connectionStates =
           )
           (Map.empty)
           (Map.keys connectionStates)
-   in if length playerChannels >= expectedPlayerCount
+   in if length playerChannels >= 2
         then Just playerChannels
         else Nothing
 
@@ -158,7 +165,12 @@ broadcastChanges room =
 clientState :: Player -> State -> Client.Room.Room
 clientState player state =
   case state of
-    WaitingForPlayers _ -> Client.Room.WaitingForPlayers (connectionStates state)
+    WaitingForPlayers connections ->
+      case checkReady connections of
+        Nothing ->
+          Client.Room.WaitingForPlayers (connectionStates state)
+        Just _ ->
+          Client.Room.ReadyToStart (connectionStates state)
     Started _ gameState ->
       Client.Room.Started (Game.playerState player gameState)
 
