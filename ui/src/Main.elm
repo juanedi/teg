@@ -5,7 +5,7 @@ import Board
 import Browser
 import Browser.Events
 import Country exposing (Country)
-import Css
+import Css exposing (px)
 import Gameplay
 import Html
 import Html.Styled as Styled exposing (..)
@@ -235,30 +235,24 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
-    div [] <|
+    div
+        [ css
+            [ Css.height (Css.vh 100)
+            , Css.width (Css.vw 100)
+            ]
+        ]
+    <|
         case model.state of
             Loading ->
-                [ sidebarLayout
-                    { sidebar = []
-                    , board = [ staticBoard model.boardSvgPath ]
-                    }
-                ]
+                [ staticBoard model.boardSvgPath ]
 
             Lobby connectionStates ->
-                [ sidebarLayout
-                    { sidebar =
-                        [ viewConnectedPlayers connectionStates.connectedPlayers
-                        ]
-                    , board = [ staticBoard model.boardSvgPath ]
-                    }
+                [ staticBoard model.boardSvgPath
                 , viewColorPickerModal connectionStates.freeSlots
                 ]
 
             Joining player ->
-                [ sidebarLayout
-                    { sidebar = []
-                    , board = [ staticBoard model.boardSvgPath ]
-                    }
+                [ staticBoard model.boardSvgPath
                 ]
 
             WaitingForPlayers connectionStates ->
@@ -312,7 +306,7 @@ sidebarLayout { sidebar, board } =
     div [ css [ Css.displayFlex ] ]
         [ div
             [ css
-                [ Css.width (Css.px 300)
+                [ Css.width (px 300)
                 , Css.displayFlex
                 , Css.flexDirection Css.column
                 ]
@@ -335,51 +329,58 @@ viewColorPickerModal freeSlots =
             , Css.displayFlex
             , Css.justifyContent Css.center
             , Css.alignItems Css.center
-            , Css.fontSize (Css.px 18)
+            , Css.fontFamilies [ "Antic Slab", "serif" ]
+            , Css.fontSize (px 18)
             ]
         ]
         [ div
             [ css
                 [ Css.backgroundColor (Css.rgb 255 255 255)
-                , Css.padding2 (Css.px 15) (Css.px 10)
-                , Css.width (Css.px 250)
+                , Css.padding2 (px 15) (px 20)
+                , Css.borderRadius (px 8)
+                , Css.boxShadow4 (px 1) (px 1) (px 2) (px 1)
                 ]
             ]
-            (if List.isEmpty freeSlots then
-                [ text "No quedan lugares 💩" ]
+            [ if List.isEmpty freeSlots then
+                text "No quedan lugares 💩"
 
-             else
-                [ div
-                    [ css
-                        [ Css.textAlign Css.center
-                        ]
-                    ]
-                    [ text "Elegí tu color" ]
-                , div
+              else
+                div
                     [ css
                         [ Css.displayFlex
-                        , Css.justifyContent Css.spaceAround
-                        , Css.marginTop (Css.px 10)
+                        , Css.justifyContent Css.center
+                        , Css.alignItems Css.center
                         ]
                     ]
-                    (List.map
-                        (\slot ->
-                            button
-                                [ Events.onClick (PlayerPicked slot)
-                                , css
-                                    [ Css.width (Css.px 40)
-                                    , Css.height (Css.px 40)
-                                    , Css.borderRadius (Css.px 20)
-                                    , Css.backgroundColor (withAlpha 1 (Player.color slot))
-                                    , Css.borderStyle Css.none
+                    [ div [ css [ Css.marginRight (px 20) ] ] [ text "Color" ]
+                    , div
+                        [ css
+                            [ Css.displayFlex
+                            , Css.alignItems Css.spaceAround
+                            , Css.justifyContent Css.spaceAround
+                            ]
+                        ]
+                        (List.map
+                            (\slot ->
+                                button
+                                    [ Events.onClick (PlayerPicked slot)
+                                    , css
+                                        [ Css.width (px 30)
+                                        , Css.height (px 30)
+                                        , Css.borderRadius (px 20)
+                                        , Css.backgroundColor (withAlpha 1 (Player.color slot))
+                                        , Css.backgroundColor (withAlpha 1 (Player.color slot))
+                                        , Css.borderStyle Css.none
+                                        , Css.marginRight (px 5)
+                                        , Css.lastChild [ Css.marginRight Css.zero ]
+                                        ]
                                     ]
-                                ]
-                                []
+                                    []
+                            )
+                            freeSlots
                         )
-                        freeSlots
-                    )
-                ]
-            )
+                    ]
+            ]
         ]
 
 
@@ -391,17 +392,17 @@ viewConnectedPlayers connectedPlayers =
                 [ css
                     [ Css.displayFlex
                     , Css.alignItems Css.center
-                    , Css.padding2 (Css.px 8) (Css.px 4)
+                    , Css.padding2 (px 8) (px 4)
                     , Css.backgroundColor (withAlpha 0.1 (Player.color player))
                     ]
                 ]
                 [ div
                     [ css
                         [ Css.backgroundColor (withAlpha 1 (Player.color player))
-                        , Css.width (Css.px 30)
-                        , Css.height (Css.px 30)
-                        , Css.borderRadius (Css.px 15)
-                        , Css.marginRight (Css.px 10)
+                        , Css.width (px 30)
+                        , Css.height (px 30)
+                        , Css.borderRadius (px 15)
+                        , Css.marginRight (px 10)
                         ]
                     ]
                     []
@@ -431,7 +432,7 @@ viewStartButton isEnabled =
                 , label = "Starting..."
                 }
     in
-    button (css [ Css.height (Css.px 60) ] :: attributes)
+    button (css [ Css.height (px 60) ] :: attributes)
         [ text label ]
 
 
