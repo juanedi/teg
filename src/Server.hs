@@ -34,7 +34,7 @@ import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
 type APIRoutes =
-  "join" :> Capture "color" Text :> Post '[JSON] ()
+  "join" :> Capture "color" Text :> Capture "name" Text :> Post '[JSON] ()
     :<|> "start" :> Post '[JSON] ()
     :<|> "paint" :> ReqBody '[JSON] (Color, Country) :> PostNoContent '[JSON] ()
 
@@ -89,7 +89,7 @@ api = Proxy
 
 gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
 gameApiServer runAction =
-  runAction . joinGame
+  (\color name -> runAction (joinGame color name))
     :<|> runAction startGame
     :<|> runAction . paintCountry
 
@@ -98,8 +98,8 @@ staticContentServer =
   serveDirectoryWebApp "ui/_build"
     :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
 
-joinGame :: Text -> Action ()
-joinGame playerId room =
+joinGame :: Text -> Text -> Action ()
+joinGame playerId name room =
   case parseUrlPiece playerId :: Either Text Color of
     Right player ->
       Room.join player room
