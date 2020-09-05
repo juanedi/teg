@@ -99,10 +99,10 @@ staticContentServer =
     :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
 
 joinGame :: Text -> Text -> Action ()
-joinGame playerId name room =
-  case parseUrlPiece playerId :: Either Text Color of
-    Right player ->
-      Room.join player room
+joinGame colorId name room =
+  case parseUrlPiece colorId :: Either Text Color of
+    Right color ->
+      Room.join color name room
     Left err ->
       ( Left (InvalidMove ("Could not parse player from url param")),
         room
