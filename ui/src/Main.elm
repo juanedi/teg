@@ -57,7 +57,8 @@ type State
 
 
 type alias LobbyState =
-    { selectedColor : Maybe Color
+    { name : String
+    , selectedColor : Maybe Color
     , hoveredColor : Maybe Color
     , connectionStates : Api.ConnectionStates
     }
@@ -66,6 +67,7 @@ type alias LobbyState =
 type Msg
     = JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
+    | NameChanged String
     | ColorHoveredIn Color
     | ColorHoveredOut Color
     | ColorPicked Color
@@ -162,7 +164,8 @@ update msg model =
                             ( { model
                                 | state =
                                     Lobby
-                                        { selectedColor = Nothing
+                                        { name = ""
+                                        , selectedColor = Nothing
                                         , hoveredColor = Nothing
                                         , connectionStates = connectionStates
                                         }
@@ -212,6 +215,16 @@ update msg model =
                     -- TODO: handle error
                     ( model, Cmd.none )
 
+        NameChanged input ->
+            ( case model.state of
+                Lobby lobbyState ->
+                    { model | state = Lobby { lobbyState | name = input } }
+
+                _ ->
+                    model
+            , Cmd.none
+            )
+
         ColorHoveredIn player ->
             ( case model.state of
                 Lobby lobbyState ->
@@ -248,11 +261,11 @@ update msg model =
 
         JoinGameClicked ->
             case model.state of
-                Lobby { selectedColor } ->
-                    case selectedColor of
-                        Just color ->
-                            ( { model | state = Joining color }
-                            , Api.postJoinByColor (Color.toUrlSegment color) JoinResponse
+                Lobby lobbyState ->
+                    case validateLobbyInput lobbyState of
+                        Just { name, selectedColor } ->
+                            ( { model | state = Joining selectedColor }
+                            , Api.postJoinByColorByName (Color.toUrlSegment selectedColor) name JoinResponse
                             )
 
                         Nothing ->
@@ -290,6 +303,21 @@ update msg model =
                     ( model, Cmd.none )
 
 
+validateLobbyInput : LobbyState -> Maybe { name : String, selectedColor : Color }
+validateLobbyInput lobbyState =
+    -- TODO: check that the name is not repeated
+    case lobbyState.selectedColor of
+        Nothing ->
+            Nothing
+
+        Just color ->
+            if String.isEmpty (String.trim lobbyState.name) then
+                Nothing
+
+            else
+                Just { name = lobbyState.name, selectedColor = color }
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     portInfo PortInfoReceived
@@ -311,7 +339,7 @@ view model =
 
             Lobby lobbyState ->
                 [ staticBoard model.boardSvgPath
-                , viewColorPickerModal lobbyState
+                , viewLobbyModal lobbyState
                 ]
 
             Joining color ->
@@ -380,8 +408,8 @@ viewModal contents =
         ]
 
 
-viewColorPickerModal : LobbyState -> Html Msg
-viewColorPickerModal state =
+viewLobbyModal : LobbyState -> Html Msg
+viewLobbyModal state =
     let
         colorOption slot =
             button
@@ -423,6 +451,24 @@ viewColorPickerModal state =
                     ]
                     []
                 ]
+
+        inputRow id fieldLabel inputMarkup =
+            div
+                [ css
+                    [ Css.displayFlex
+                    , Css.justifyContent Css.spaceBetween
+                    , Css.alignItems Css.center
+                    , Css.marginBottom (px 30)
+                    , Css.width (Css.pct 100)
+                    ]
+                ]
+                [ label
+                    [ Attributes.for id
+                    , css [ Css.marginRight (px 30) ]
+                    ]
+                    [ text fieldLabel ]
+                , inputMarkup
+                ]
     in
     viewModal
         (if List.isEmpty state.connectionStates.freeSlots then
@@ -433,23 +479,37 @@ viewColorPickerModal state =
             , div
                 [ css
                     [ Css.displayFlex
-                    , Css.justifyContent Css.center
-                    , Css.alignItems Css.center
+                    , Css.flexDirection Css.column
+                    , Css.alignItems Css.stretch
                     ]
                 ]
-                [ div [ css [ Css.marginRight (px 20) ] ] [ text "Color" ]
-                , div
-                    [ css
-                        [ Css.displayFlex
-                        , Css.alignItems Css.spaceAround
-                        , Css.justifyContent Css.spaceAround
+                [ inputRow "name-input"
+                    "Nombre"
+                    (input
+                        [ Attributes.id "name-input"
+                        , Attributes.type_ "text"
+                        , Attributes.autofocus True
+                        , Events.onInput NameChanged
                         ]
-                    ]
-                    (List.map colorOption state.connectionStates.freeSlots)
+                        []
+                    )
+                , inputRow "color-input"
+                    "Color"
+                    (div
+                        [ Attributes.id "color-input"
+                        , css
+                            [ Css.displayFlex
+                            , Css.alignItems Css.spaceAround
+                            , Css.justifyContent Css.spaceAround
+                            ]
+                        ]
+                        -- TODO: show disabled buttons for taken options
+                        (List.map colorOption state.connectionStates.freeSlots)
+                    )
                 ]
             , Button.view
-                { label = "Elegir"
-                , isEnabled = state.selectedColor /= Nothing
+                { label = "Entrar"
+                , isEnabled = validateLobbyInput state /= Nothing
                 , onClick = Just JoinGameClicked
                 , css = [ Css.marginTop (px 25) ]
                 }
