@@ -15,6 +15,7 @@ import Http
 import Json.Decode as Decode exposing (Value)
 import Json.Encode as Encode
 import Player exposing (Player)
+import Ui.Button as Button
 
 
 port sendPortCommand : Value -> Cmd msg
@@ -257,21 +258,18 @@ view model =
                 ]
 
             WaitingForPlayers connectionStates ->
-                [ sidebarLayout
-                    { sidebar =
-                        [ viewConnectedPlayers connectionStates.connectedPlayers
-                        ]
-                    , board = [ staticBoard model.boardSvgPath ]
+                [ staticBoard model.boardSvgPath
+                , viewWaitingForPlayersModal
+                    { connectedPlayers = connectionStates.connectedPlayers
+                    , readyToStart = False
                     }
                 ]
 
             ReadyToStart connectionStates ->
-                [ sidebarLayout
-                    { sidebar =
-                        [ viewConnectedPlayers connectionStates.connectedPlayers
-                        , viewStartButton True
-                        ]
-                    , board = [ staticBoard model.boardSvgPath ]
+                [ staticBoard model.boardSvgPath
+                , viewWaitingForPlayersModal
+                    { connectedPlayers = connectionStates.connectedPlayers
+                    , readyToStart = True
                     }
                 ]
 
@@ -339,6 +337,9 @@ viewModal contents =
                 , Css.padding2 (px 15) (px 20)
                 , Css.borderRadius (px 8)
                 , Css.boxShadow4 (px 1) (px 1) (px 2) (px 1)
+                , Css.displayFlex
+                , Css.flexDirection Css.column
+                , Css.alignItems Css.center
                 ]
             ]
             contents
@@ -390,8 +391,39 @@ viewColorPickerModal freeSlots =
         ]
 
 
+viewWaitingForPlayersModal : { connectedPlayers : List Player, readyToStart : Bool } -> Html Msg
+viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
+    let
+        viewPlayer player =
+            div [ css [ Css.textDecoration3 Css.underline Css.solid (withAlpha 1 (Player.color player)) ] ]
+                [ text (Player.label player)
+                ]
+    in
+    viewModal
+        [ div
+            [ css
+                [ Css.displayFlex
+                , Css.flexDirection Css.column
+                , Css.alignItems Css.center
+                ]
+            ]
+            [ h3 [] [ text "En el juego" ]
+            , div
+                [ css
+                    [ Css.minWidth (px 220)
+                    , Css.border3 (px 1) Css.solid (Css.hex "#CACACA")
+                    , Css.padding2 (px 15) (px 10)
+                    ]
+                ]
+                (List.map viewPlayer connectedPlayers)
+            ]
+        , viewStartButton readyToStart
+        ]
+
+
 viewConnectedPlayers : List Player -> Styled.Html Msg
 viewConnectedPlayers connectedPlayers =
+    -- TODO: delete!
     let
         viewPlayer player =
             div
@@ -426,20 +458,12 @@ viewConnectedPlayers connectedPlayers =
 
 viewStartButton : Bool -> Styled.Html Msg
 viewStartButton isEnabled =
-    let
-        { attributes, label } =
-            if isEnabled then
-                { attributes = [ Events.onClick StartGameClicked ]
-                , label = "Start game!"
-                }
-
-            else
-                { attributes = [ Attributes.disabled True ]
-                , label = "Starting..."
-                }
-    in
-    button (css [ Css.height (px 60) ] :: attributes)
-        [ text label ]
+    Button.view
+        { label = "Empezar juego"
+        , isEnabled = isEnabled
+        , onClick = Just StartGameClicked
+        , css = [ Css.marginTop (px 25) ]
+        }
 
 
 staticBoard : String -> Styled.Html Msg
