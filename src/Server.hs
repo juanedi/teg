@@ -15,7 +15,7 @@ import Data.Text (Text)
 import qualified Data.Text.Lazy
 import Data.Text.Lazy.Encoding (encodeUtf8)
 import qualified Game
-import Game (Country, Color)
+import Game (Color, Country)
 import Game.Room (Room)
 import qualified Game.Room as Room
 import Network.Wai
@@ -34,7 +34,7 @@ import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
 type APIRoutes =
-  "join" :> Capture "player" Text :> Post '[JSON] ()
+  "join" :> Capture "color" Text :> Post '[JSON] ()
     :<|> "start" :> Post '[JSON] ()
     :<|> "paint" :> ReqBody '[JSON] (Color, Country) :> PostNoContent '[JSON] ()
 
