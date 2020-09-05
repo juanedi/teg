@@ -5,20 +5,18 @@ import Board
 import Browser
 import Browser.Events
 import Country exposing (Country)
-import Css
-import Element exposing (Element)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Font as Font
-import Element.Input as Input
+import Css exposing (px, zero)
 import Gameplay
-import Html exposing (Html)
-import Html.Attributes
-import Html.Events as Events
+import Html
+import Html.Styled as Styled exposing (..)
+import Html.Styled.Attributes as Attributes exposing (css)
+import Html.Styled.Events as Events
 import Http
 import Json.Decode as Decode exposing (Value)
 import Json.Encode as Encode
 import Player exposing (Player)
+import Ui.Button as Button
+import Ui.Color as Color
 
 
 port sendPortCommand : Value -> Cmd msg
@@ -38,26 +36,19 @@ type PortInfo
 
 
 type alias Flags =
-    { viewport : Viewport
-    , boardSvgPath : String
+    { boardSvgPath : String
     }
 
 
 type alias Model =
-    { viewport : Viewport
-    , boardSvgPath : String
+    { boardSvgPath : String
     , state : State
     }
 
 
-type alias Viewport =
-    { width : Int, height : Int }
-
-
 type State
     = Loading
-    | -- user is deciding which player/color to use
-      Lobby Api.ConnectionStates
+    | Lobby LobbyState
     | Joining Player
     | WaitingForPlayers Api.ConnectionStates
     | ReadyToStart Api.ConnectionStates
@@ -65,11 +56,20 @@ type State
     | Playing Gameplay.State
 
 
+type alias LobbyState =
+    { selectedPlayer : Maybe Player
+    , hoveredPlayer : Maybe Player
+    , connectionStates : Api.ConnectionStates
+    }
+
+
 type Msg
-    = ViewportChanged { width : Int, height : Int }
-    | JoinResponse (Result Http.Error ())
+    = JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
+    | MouseEnterOnPlayer Player
+    | MouseLeftPlayer Player
     | PlayerPicked Player
+    | JoinGameClicked
     | StartGameClicked
     | StartGameResponse (Result Http.Error ())
     | GameplayMsg Gameplay.Msg
@@ -79,16 +79,15 @@ main : Program Flags Model Msg
 main =
     Browser.element
         { init = init
-        , view = view
+        , view = view >> Styled.toUnstyled
         , update = update
         , subscriptions = subscriptions
         }
 
 
 init : Flags -> ( Model, Cmd Msg )
-init { viewport, boardSvgPath } =
-    ( { viewport = viewport
-      , boardSvgPath = boardSvgPath
+init { boardSvgPath } =
+    ( { boardSvgPath = boardSvgPath
       , state = Loading
       }
     , sendPortCommand (encodePortCommand InitLobbySocket)
@@ -137,11 +136,6 @@ encodePortCommand cmd =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ViewportChanged viewport ->
-            ( { model | viewport = viewport }
-            , Cmd.none
-            )
-
         JoinResponse result ->
             case model.state of
                 Joining player ->
@@ -165,12 +159,19 @@ update msg model =
                 Ok (LobbyStateUpdate connectionStates) ->
                     case model.state of
                         Loading ->
-                            ( { model | state = Lobby connectionStates }
+                            ( { model
+                                | state =
+                                    Lobby
+                                        { selectedPlayer = Nothing
+                                        , hoveredPlayer = Nothing
+                                        , connectionStates = connectionStates
+                                        }
+                              }
                             , Cmd.none
                             )
 
-                        Lobby _ ->
-                            ( { model | state = Lobby connectionStates }
+                        Lobby lobbyState ->
+                            ( { model | state = Lobby { lobbyState | connectionStates = connectionStates } }
                             , Cmd.none
                             )
 
@@ -211,10 +212,54 @@ update msg model =
                     -- TODO: handle error
                     ( model, Cmd.none )
 
-        PlayerPicked player ->
-            ( { model | state = Joining player }
-            , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
+        MouseEnterOnPlayer player ->
+            ( case model.state of
+                Lobby lobbyState ->
+                    { model | state = Lobby { lobbyState | hoveredPlayer = Just player } }
+
+                _ ->
+                    model
+            , Cmd.none
             )
+
+        MouseLeftPlayer player ->
+            ( case model.state of
+                Lobby lobbyState ->
+                    if lobbyState.hoveredPlayer == Just player then
+                        { model | state = Lobby { lobbyState | hoveredPlayer = Nothing } }
+
+                    else
+                        model
+
+                _ ->
+                    model
+            , Cmd.none
+            )
+
+        PlayerPicked player ->
+            case model.state of
+                Lobby lobbyState ->
+                    ( { model | state = Lobby { lobbyState | selectedPlayer = Just player } }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        JoinGameClicked ->
+            case model.state of
+                Lobby { selectedPlayer } ->
+                    case selectedPlayer of
+                        Just player ->
+                            ( { model | state = Joining player }
+                            , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
+                            )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
 
         StartGameClicked ->
             case model.state of
@@ -247,277 +292,218 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.batch
-        [ portInfo PortInfoReceived
-        , Browser.Events.onResize (\w h -> ViewportChanged { width = w, height = h })
-        ]
+    portInfo PortInfoReceived
 
 
 view : Model -> Html Msg
 view model =
-    case model.state of
-        Loading ->
-            { viewport = model.viewport
-            , sidebar = []
-            , board = [ staticBoard model.boardSvgPath ]
-            }
-                |> sidebarLayout
-                |> Element.layout []
+    div
+        [ css
+            [ Css.height (Css.vh 100)
+            , Css.width (Css.vw 100)
+            , Css.fontFamilies [ "Antic Slab", "serif" ]
+            ]
+        ]
+    <|
+        case model.state of
+            Loading ->
+                [ staticBoard model.boardSvgPath ]
 
-        Lobby connectionStates ->
-            Element.layout
-                [ Element.inFront (viewColorPicker connectionStates.freeSlots) ]
-                (sidebarLayout
-                    { viewport = model.viewport
-                    , sidebar =
-                        [ viewConnectedPlayers
-                            { fillPortion = 1 }
-                            connectionStates.connectedPlayers
-                        ]
-                    , board = [ staticBoard model.boardSvgPath ]
+            Lobby lobbyState ->
+                [ staticBoard model.boardSvgPath
+                , viewColorPickerModal lobbyState
+                ]
+
+            Joining player ->
+                [ staticBoard model.boardSvgPath
+                ]
+
+            WaitingForPlayers connectionStates ->
+                [ staticBoard model.boardSvgPath
+                , viewWaitingForPlayersModal
+                    { connectedPlayers = connectionStates.connectedPlayers
+                    , readyToStart = False
                     }
-                )
-
-        Joining player ->
-            { viewport = model.viewport
-            , sidebar = []
-            , board = [ staticBoard model.boardSvgPath ]
-            }
-                |> sidebarLayout
-                |> Element.layout []
-
-        WaitingForPlayers connectionStates ->
-            { viewport = model.viewport
-            , sidebar =
-                [ viewConnectedPlayers
-                    { fillPortion = 1 }
-                    connectionStates.connectedPlayers
                 ]
-            , board = [ staticBoard model.boardSvgPath ]
-            }
-                |> sidebarLayout
-                |> Element.layout []
 
-        ReadyToStart connectionStates ->
-            { viewport = model.viewport
-            , sidebar =
-                [ viewConnectedPlayers
-                    { fillPortion = 4 }
-                    connectionStates.connectedPlayers
-                , viewStartButton
-                    { fillPortion = 1 }
-                    True
+            ReadyToStart connectionStates ->
+                [ staticBoard model.boardSvgPath
+                , viewWaitingForPlayersModal
+                    { connectedPlayers = connectionStates.connectedPlayers
+                    , readyToStart = True
+                    }
                 ]
-            , board = [ staticBoard model.boardSvgPath ]
-            }
-                |> sidebarLayout
-                |> Element.layout []
 
-        Starting connectionStates ->
-            { viewport = model.viewport
-            , sidebar =
-                [ viewConnectedPlayers
-                    { fillPortion = 4 }
-                    connectionStates.connectedPlayers
-                , viewStartButton
-                    { fillPortion = 1 }
-                    False
+            Starting connectionStates ->
+                [ staticBoard model.boardSvgPath
+                , viewWaitingForPlayersModal
+                    { connectedPlayers = connectionStates.connectedPlayers
+                    , readyToStart = False
+                    }
                 ]
-            , board = [ staticBoard model.boardSvgPath ]
-            }
-                |> sidebarLayout
-                |> Element.layout []
 
-        Playing gameState ->
-            { viewport = model.viewport
-            , sidebar = []
-            , board =
+            Playing gameState ->
                 [ gameState
                     |> Gameplay.view model.boardSvgPath
-                    |> Element.html
-                    |> Element.map GameplayMsg
+                    |> Styled.fromUnstyled
+                    |> Styled.map GameplayMsg
                 ]
-            }
-                |> sidebarLayout
-                |> Element.layout []
 
 
-sidebarLayout :
-    { viewport : Viewport
-    , sidebar : List (Element Msg)
-    , board : List (Element Msg)
-    }
-    -> Element Msg
-sidebarLayout { viewport, sidebar, board } =
-    Element.row
-        [ Element.width Element.fill
-        , Element.height Element.fill
+viewModal : List (Html Msg) -> Html Msg
+viewModal contents =
+    div
+        [ css
+            [ Css.position Css.fixed
+            , Css.top zero
+            , Css.left zero
+            , Css.width (Css.vw 100)
+            , Css.height (Css.vh 100)
+            , Css.displayFlex
+            , Css.justifyContent Css.center
+            , Css.alignItems Css.center
+            , Css.fontSize (px 18)
+            ]
         ]
-        [ Element.column
-            [ Element.width (Element.px 250)
-            , Element.height (Element.fillPortion 2)
-            , Element.spacing 30
-            , Font.size 14
+        [ div
+            [ css
+                [ Css.backgroundColor (Css.rgb 255 255 255)
+                , Css.padding2 (px 15) (px 20)
+                , Css.borderRadius (px 8)
+                , Css.boxShadow4 (px 1) (px 1) (px 2) (px 1)
+                , Css.displayFlex
+                , Css.flexDirection Css.column
+                , Css.alignItems Css.center
+                ]
             ]
-            sidebar
-        , Element.column
-            [ Element.width Element.fill
-            , Element.height Element.fill
-            , Element.centerX
-            , Border.glow (Element.rgb 0 0 0) 0.3
-            ]
-            board
+            contents
         ]
 
 
-viewColorPicker : List Player -> Element Msg
-viewColorPicker freeSlots =
-    viewModal
-        (if List.isEmpty freeSlots then
-            [ Element.el
-                [ Element.centerX
-                , Font.size 16
-                , Font.bold
-                ]
-                (Element.text "No quedan lugares 💩")
-            ]
-
-         else
-            [ Element.el
-                [ Element.centerX
-                , Font.size 16
-                , Font.bold
-                ]
-                (Element.text "Elegir color")
-            , Element.row
-                [ Element.centerX
-                , Element.spacing 10
-                ]
-                (List.map
-                    (\slot ->
-                        Input.button
-                            [ Element.width (Element.px 40)
-                            , Element.height (Element.px 40)
-                            , Background.color (Player.color slot |> withAlpha 0.1)
-                            , Border.color (Player.color slot |> withAlpha 0.3)
-                            , Border.width 1
-                            , Border.rounded 20
-                            , Font.size 12
-                            , Element.mouseOver
-                                [ Background.color (Player.color slot |> withAlpha 0.4)
-                                ]
-                            ]
-                            { onPress = Just (PlayerPicked slot)
-                            , label = Element.text ""
-                            }
-                    )
-                    freeSlots
-                )
-            ]
-        )
-
-
-viewModal : List (Element Msg) -> Element Msg
-viewModal content =
-    Element.column
-        [ Element.centerX
-        , Element.centerY
-        , Element.width (Element.shrink |> Element.minimum 200)
-        , Element.padding 20
-        , Element.spacing 20
-        , Background.color (Element.rgb255 255 255 255)
-        , Border.rounded 4
-        , Border.shadow
-            { offset = ( 1, 1 )
-            , size = 1
-            , blur = 3
-            , color = Element.rgb 0 0 0
-            }
-        ]
-        content
-
-
-viewConnectedPlayers : { fillPortion : Int } -> List Player -> Element Msg
-viewConnectedPlayers { fillPortion } connectedPlayers =
+viewColorPickerModal : LobbyState -> Html Msg
+viewColorPickerModal state =
     let
-        viewPlayer player =
-            Element.row
-                [ Element.spacing 10
-                , Element.padding 10
-                , Element.width Element.fill
-                , Background.color (Player.color player |> withAlpha 0.1)
-                ]
-                [ Element.el
-                    [ Element.height (Element.px 10)
-                    , Element.width (Element.px 10)
-                    , Background.color (Player.color player |> withAlpha 1)
-                    , Border.rounded 5
+        colorOption slot =
+            button
+                [ Events.onClick (PlayerPicked slot)
+                , Events.onMouseEnter (MouseEnterOnPlayer slot)
+                , Events.onMouseLeave (MouseLeftPlayer slot)
+                , css
+                    [ Css.marginRight (px 5)
+                    , Css.backgroundColor Css.unset
+                    , Css.border Css.unset
+                    , Css.padding4 zero zero (px 2) zero
+                    , Css.borderBottom3 (px 2)
+                        Css.solid
+                        (if state.selectedPlayer == Just slot || state.hoveredPlayer == Just slot then
+                            (Player.colors slot).solid
+
+                         else
+                            Color.white
+                        )
                     ]
-                    (Element.text "")
-                , Element.text (Player.label player)
+                ]
+                [ div
+                    [ css
+                        [ Css.width (px 30)
+                        , Css.height (px 30)
+                        , Css.borderRadius (px 20)
+                        , Css.borderStyle Css.none
+                        , Css.lastChild [ Css.marginRight zero ]
+                        , Css.backgroundColor
+                            ((if state.selectedPlayer == Just slot then
+                                .solid
+
+                              else
+                                .light
+                             )
+                                (Player.colors slot)
+                            )
+                        ]
+                    ]
+                    []
                 ]
     in
-    Element.column
-        [ Element.width Element.fill
-        , Element.height (Element.fillPortion fillPortion)
-        , Border.glow (Element.rgb 0 0 0) 0.3
-        ]
-        (if List.isEmpty connectedPlayers then
-            [ Element.column
-                [ Font.size 13
-                , Element.centerX
-                , Element.centerY
-                , Font.color (Element.rgb255 150 150 150)
+    viewModal
+        (if List.isEmpty state.connectionStates.freeSlots then
+            [ text "No quedan lugares 💩" ]
+
+         else
+            [ h3 [] [ text "Elegir color" ]
+            , div
+                [ css
+                    [ Css.displayFlex
+                    , Css.justifyContent Css.center
+                    , Css.alignItems Css.center
+                    ]
                 ]
-                [ Element.text "Esperado jugadores" ]
-            ]
-
-         else
-            List.map viewPlayer connectedPlayers
-        )
-
-
-viewStartButton : { fillPortion : Int } -> Bool -> Element Msg
-viewStartButton { fillPortion } isEnabled =
-    Input.button
-        [ Element.centerX
-        , Element.centerY
-        ]
-        (if isEnabled then
-            { onPress = Just StartGameClicked
-            , label = Element.text "Start game!"
-            }
-
-         else
-            { onPress = Nothing
-            , label = Element.text "Starting..."
-            }
-        )
-
-
-staticBoard : String -> Element Msg
-staticBoard boardSvgPath =
-    Element.el
-        [ Element.alpha 0.4
-        , Element.height Element.fill
-        , Element.width Element.fill
-        ]
-        (Element.html <|
-            Board.view
-                { svgPath = boardSvgPath
-                , onCountryClicked = Nothing
-                , onCountryMouseEnter = Nothing
-                , onCountryMouseLeave = Nothing
-                , highlightedCoutries = []
+                [ div [ css [ Css.marginRight (px 20) ] ] [ text "Color" ]
+                , div
+                    [ css
+                        [ Css.displayFlex
+                        , Css.alignItems Css.spaceAround
+                        , Css.justifyContent Css.spaceAround
+                        ]
+                    ]
+                    (List.map colorOption state.connectionStates.freeSlots)
+                ]
+            , Button.view
+                { label = "Elegir"
+                , isEnabled = state.selectedPlayer /= Nothing
+                , onClick = Just JoinGameClicked
+                , css = [ Css.marginTop (px 25) ]
                 }
+            ]
         )
 
 
-withAlpha : Float -> { red : Float, green : Float, blue : Float } -> Element.Color
-withAlpha alpha rgb =
-    Element.fromRgb
-        { red = rgb.red
-        , green = rgb.green
-        , blue = rgb.blue
-        , alpha = alpha
-        }
+viewWaitingForPlayersModal : { connectedPlayers : List Player, readyToStart : Bool } -> Html Msg
+viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
+    let
+        viewPlayer player =
+            div [ css [ Css.textDecoration3 Css.underline Css.solid (Player.colors player).solid ] ]
+                [ text (Player.label player)
+                ]
+    in
+    viewModal
+        [ div
+            [ css
+                [ Css.displayFlex
+                , Css.flexDirection Css.column
+                , Css.alignItems Css.center
+                ]
+            ]
+            [ h3 [] [ text "En el juego" ]
+            , div
+                [ css
+                    [ Css.minWidth (px 220)
+                    , Css.border3 (px 1) Css.solid (Css.hex "#CACACA")
+                    , Css.padding2 (px 15) (px 10)
+                    ]
+                ]
+                (List.map viewPlayer connectedPlayers)
+            ]
+        , Button.view
+            { label = "Empezar juego"
+            , isEnabled = readyToStart
+            , onClick = Just StartGameClicked
+            , css = [ Css.marginTop (px 25) ]
+            }
+        ]
+
+
+staticBoard : String -> Styled.Html Msg
+staticBoard boardSvgPath =
+    Styled.fromUnstyled <|
+        Board.view
+            { svgPath = boardSvgPath
+            , onCountryClicked = Nothing
+            , onCountryMouseEnter = Nothing
+            , onCountryMouseLeave = Nothing
+            , highlightedCoutries = []
+            }
+
+
+withAlpha : Float -> { red : Int, green : Int, blue : Int } -> Css.Color
+withAlpha alpha { red, green, blue } =
+    Css.rgba red green blue alpha
