@@ -57,6 +57,7 @@ type State
 
 type alias LobbyState =
     { selectedPlayer : Maybe Player
+    , hoveredPlayer : Maybe Player
     , connectionStates : Api.ConnectionStates
     }
 
@@ -64,6 +65,8 @@ type alias LobbyState =
 type Msg
     = JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
+    | MouseEnterOnPlayer Player
+    | MouseLeftPlayer Player
     | PlayerPicked Player
     | JoinGameClicked
     | StartGameClicked
@@ -159,6 +162,7 @@ update msg model =
                                 | state =
                                     Lobby
                                         { selectedPlayer = Nothing
+                                        , hoveredPlayer = Nothing
                                         , connectionStates = connectionStates
                                         }
                               }
@@ -206,6 +210,30 @@ update msg model =
                 Err _ ->
                     -- TODO: handle error
                     ( model, Cmd.none )
+
+        MouseEnterOnPlayer player ->
+            ( case model.state of
+                Lobby lobbyState ->
+                    { model | state = Lobby { lobbyState | hoveredPlayer = Just player } }
+
+                _ ->
+                    model
+            , Cmd.none
+            )
+
+        MouseLeftPlayer player ->
+            ( case model.state of
+                Lobby lobbyState ->
+                    if lobbyState.hoveredPlayer == Just player then
+                        { model | state = Lobby { lobbyState | hoveredPlayer = Nothing } }
+
+                    else
+                        model
+
+                _ ->
+                    model
+            , Cmd.none
+            )
 
         PlayerPicked player ->
             case model.state of
@@ -282,10 +310,7 @@ view model =
 
             Lobby lobbyState ->
                 [ staticBoard model.boardSvgPath
-                , viewColorPickerModal
-                    { selectedPlayer = lobbyState.selectedPlayer
-                    , freeSlots = lobbyState.connectionStates.freeSlots
-                    }
+                , viewColorPickerModal lobbyState
                 ]
 
             Joining player ->
@@ -381,22 +406,27 @@ viewModal contents =
         ]
 
 
-viewColorPickerModal : { selectedPlayer : Maybe Player, freeSlots : List Player } -> Html Msg
-viewColorPickerModal { selectedPlayer, freeSlots } =
+viewColorPickerModal : LobbyState -> Html Msg
+viewColorPickerModal state =
     let
         colorOption slot =
             button
                 [ Events.onClick (PlayerPicked slot)
+                , Events.onMouseEnter (MouseEnterOnPlayer slot)
+                , Events.onMouseLeave (MouseLeftPlayer slot)
                 , css
                     [ Css.marginRight (px 5)
                     , Css.backgroundColor Css.unset
                     , Css.border Css.unset
                     , Css.padding4 zero zero (px 2) zero
-                    , if selectedPlayer == Just slot then
-                        Css.borderBottom3 (px 2) Css.solid (withAlpha 1 (Player.color slot))
+                    , Css.borderBottom3 (px 2)
+                        Css.solid
+                        (if state.selectedPlayer == Just slot || state.hoveredPlayer == Just slot then
+                            withAlpha 1 (Player.color slot)
 
-                      else
-                        Css.border Css.unset
+                         else
+                            Css.hex "#FFFFFF"
+                        )
                     ]
                 ]
                 [ div
@@ -408,7 +438,7 @@ viewColorPickerModal { selectedPlayer, freeSlots } =
                         , Css.lastChild [ Css.marginRight zero ]
                         , Css.backgroundColor
                             (withAlpha
-                                (if selectedPlayer == Just slot then
+                                (if state.selectedPlayer == Just slot then
                                     1
 
                                  else
@@ -422,7 +452,7 @@ viewColorPickerModal { selectedPlayer, freeSlots } =
                 ]
     in
     viewModal
-        (if List.isEmpty freeSlots then
+        (if List.isEmpty state.connectionStates.freeSlots then
             [ text "No quedan lugares 💩" ]
 
          else
@@ -442,11 +472,11 @@ viewColorPickerModal { selectedPlayer, freeSlots } =
                         , Css.justifyContent Css.spaceAround
                         ]
                     ]
-                    (List.map colorOption freeSlots)
+                    (List.map colorOption state.connectionStates.freeSlots)
                 ]
             , Button.view
                 { label = "Elegir"
-                , isEnabled = selectedPlayer /= Nothing
+                , isEnabled = state.selectedPlayer /= Nothing
                 , onClick = Just JoinGameClicked
                 , css = [ Css.marginTop (px 25) ]
                 }
