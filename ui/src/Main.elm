@@ -5,7 +5,7 @@ import Board
 import Browser
 import Browser.Events
 import Country exposing (Country)
-import Css exposing (px)
+import Css exposing (px, zero)
 import Gameplay
 import Html
 import Html.Styled as Styled exposing (..)
@@ -47,8 +47,7 @@ type alias Model =
 
 type State
     = Loading
-    | -- user is deciding which player/color to use
-      Lobby Api.ConnectionStates
+    | Lobby LobbyState
     | Joining Player
     | WaitingForPlayers Api.ConnectionStates
     | ReadyToStart Api.ConnectionStates
@@ -56,10 +55,17 @@ type State
     | Playing Gameplay.State
 
 
+type alias LobbyState =
+    { selectedPlayer : Maybe Player
+    , connectionStates : Api.ConnectionStates
+    }
+
+
 type Msg
     = JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
     | PlayerPicked Player
+    | JoinGameClicked
     | StartGameClicked
     | StartGameResponse (Result Http.Error ())
     | GameplayMsg Gameplay.Msg
@@ -149,12 +155,18 @@ update msg model =
                 Ok (LobbyStateUpdate connectionStates) ->
                     case model.state of
                         Loading ->
-                            ( { model | state = Lobby connectionStates }
+                            ( { model
+                                | state =
+                                    Lobby
+                                        { selectedPlayer = Nothing
+                                        , connectionStates = connectionStates
+                                        }
+                              }
                             , Cmd.none
                             )
 
-                        Lobby _ ->
-                            ( { model | state = Lobby connectionStates }
+                        Lobby lobbyState ->
+                            ( { model | state = Lobby { lobbyState | connectionStates = connectionStates } }
                             , Cmd.none
                             )
 
@@ -196,9 +208,29 @@ update msg model =
                     ( model, Cmd.none )
 
         PlayerPicked player ->
-            ( { model | state = Joining player }
-            , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
-            )
+            case model.state of
+                Lobby lobbyState ->
+                    ( { model | state = Lobby { lobbyState | selectedPlayer = Just player } }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        JoinGameClicked ->
+            case model.state of
+                Lobby { selectedPlayer } ->
+                    case selectedPlayer of
+                        Just player ->
+                            ( { model | state = Joining player }
+                            , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
+                            )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
 
         StartGameClicked ->
             case model.state of
@@ -248,9 +280,12 @@ view model =
             Loading ->
                 [ staticBoard model.boardSvgPath ]
 
-            Lobby connectionStates ->
+            Lobby lobbyState ->
                 [ staticBoard model.boardSvgPath
-                , viewColorPickerModal connectionStates.freeSlots
+                , viewColorPickerModal
+                    { selectedPlayer = lobbyState.selectedPlayer
+                    , freeSlots = lobbyState.connectionStates.freeSlots
+                    }
                 ]
 
             Joining player ->
@@ -321,8 +356,8 @@ viewModal contents =
     div
         [ css
             [ Css.position Css.fixed
-            , Css.top Css.zero
-            , Css.left Css.zero
+            , Css.top zero
+            , Css.left zero
             , Css.width (Css.vw 100)
             , Css.height (Css.vh 100)
             , Css.displayFlex
@@ -346,14 +381,53 @@ viewModal contents =
         ]
 
 
-viewColorPickerModal : List Player -> Html Msg
-viewColorPickerModal freeSlots =
-    viewModal
-        [ if List.isEmpty freeSlots then
-            text "No quedan lugares 💩"
+viewColorPickerModal : { selectedPlayer : Maybe Player, freeSlots : List Player } -> Html Msg
+viewColorPickerModal { selectedPlayer, freeSlots } =
+    let
+        colorOption slot =
+            button
+                [ Events.onClick (PlayerPicked slot)
+                , css
+                    [ Css.marginRight (px 5)
+                    , Css.backgroundColor Css.unset
+                    , Css.border Css.unset
+                    , Css.padding4 zero zero (px 2) zero
+                    , if selectedPlayer == Just slot then
+                        Css.borderBottom3 (px 2) Css.solid (withAlpha 1 (Player.color slot))
 
-          else
-            div
+                      else
+                        Css.border Css.unset
+                    ]
+                ]
+                [ div
+                    [ css
+                        [ Css.width (px 30)
+                        , Css.height (px 30)
+                        , Css.borderRadius (px 20)
+                        , Css.borderStyle Css.none
+                        , Css.lastChild [ Css.marginRight zero ]
+                        , Css.backgroundColor
+                            (withAlpha
+                                (if selectedPlayer == Just slot then
+                                    1
+
+                                 else
+                                    0.4
+                                )
+                                (Player.color slot)
+                            )
+                        ]
+                    ]
+                    []
+                ]
+    in
+    viewModal
+        (if List.isEmpty freeSlots then
+            [ text "No quedan lugares 💩" ]
+
+         else
+            [ h3 [] [ text "Elegir color" ]
+            , div
                 [ css
                     [ Css.displayFlex
                     , Css.justifyContent Css.center
@@ -368,27 +442,16 @@ viewColorPickerModal freeSlots =
                         , Css.justifyContent Css.spaceAround
                         ]
                     ]
-                    (List.map
-                        (\slot ->
-                            button
-                                [ Events.onClick (PlayerPicked slot)
-                                , css
-                                    [ Css.width (px 30)
-                                    , Css.height (px 30)
-                                    , Css.borderRadius (px 20)
-                                    , Css.backgroundColor (withAlpha 1 (Player.color slot))
-                                    , Css.backgroundColor (withAlpha 1 (Player.color slot))
-                                    , Css.borderStyle Css.none
-                                    , Css.marginRight (px 5)
-                                    , Css.lastChild [ Css.marginRight Css.zero ]
-                                    ]
-                                ]
-                                []
-                        )
-                        freeSlots
-                    )
+                    (List.map colorOption freeSlots)
                 ]
-        ]
+            , Button.view
+                { label = "Elegir"
+                , isEnabled = selectedPlayer /= Nothing
+                , onClick = Just JoinGameClicked
+                , css = [ Css.marginTop (px 25) ]
+                }
+            ]
+        )
 
 
 viewWaitingForPlayersModal : { connectedPlayers : List Player, readyToStart : Bool } -> Html Msg
