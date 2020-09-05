@@ -412,47 +412,6 @@ viewModal contents =
 viewLobbyModal : LobbyState -> Html Msg
 viewLobbyModal state =
     let
-        colorOption slot =
-            button
-                [ Events.onClick (ColorPicked slot)
-                , Events.onMouseEnter (ColorHoveredIn slot)
-                , Events.onMouseLeave (ColorHoveredOut slot)
-                , css
-                    [ Css.marginRight (px 5)
-                    , Css.backgroundColor Css.unset
-                    , Css.border Css.unset
-                    , Css.padding4 zero zero (px 2) zero
-                    , Css.borderBottom3 (px 2)
-                        Css.solid
-                        (if state.selectedColor == Just slot || state.hoveredColor == Just slot then
-                            (Color.theme slot).solid
-
-                         else
-                            Theme.white
-                        )
-                    ]
-                ]
-                [ div
-                    [ css
-                        [ Css.width (px 30)
-                        , Css.height (px 30)
-                        , Css.borderRadius (px 20)
-                        , Css.borderStyle Css.none
-                        , Css.lastChild [ Css.marginRight zero ]
-                        , Css.backgroundColor
-                            ((if state.selectedColor == Just slot then
-                                .solid
-
-                              else
-                                .light
-                             )
-                                (Color.theme slot)
-                            )
-                        ]
-                    ]
-                    []
-                ]
-
         inputRow id fieldLabel inputMarkup =
             div
                 [ css
@@ -500,17 +459,7 @@ viewLobbyModal state =
                     )
                 , inputRow "color-input"
                     "Color"
-                    (div
-                        [ Attributes.id "color-input"
-                        , css
-                            [ Css.displayFlex
-                            , Css.alignItems Css.spaceAround
-                            , Css.justifyContent Css.spaceAround
-                            ]
-                        ]
-                        -- TODO: show disabled buttons for taken options
-                        (List.map colorOption state.connectionStates.freeSlots)
-                    )
+                    (viewColorPicker "color-input" state)
                 ]
             , Button.view
                 { label = "Entrar"
@@ -520,6 +469,62 @@ viewLobbyModal state =
                 }
             ]
         )
+
+
+viewColorPicker : String -> LobbyState -> Html Msg
+viewColorPicker id state =
+    let
+        viewColorOption slot =
+            button
+                [ Events.onClick (ColorPicked slot)
+                , Events.onMouseEnter (ColorHoveredIn slot)
+                , Events.onMouseLeave (ColorHoveredOut slot)
+                , css
+                    [ Css.marginRight (px 5)
+                    , Css.backgroundColor Css.unset
+                    , Css.border Css.unset
+                    , Css.padding4 zero zero (px 2) zero
+                    , Css.borderBottom3 (px 2)
+                        Css.solid
+                        (if state.selectedColor == Just slot || state.hoveredColor == Just slot then
+                            (Color.theme slot).solid
+
+                         else
+                            Theme.white
+                        )
+                    ]
+                ]
+                [ div
+                    [ css
+                        [ Css.width (px 30)
+                        , Css.height (px 30)
+                        , Css.borderRadius (px 20)
+                        , Css.borderStyle Css.none
+                        , Css.lastChild [ Css.marginRight zero ]
+                        , Css.backgroundColor
+                            ((if state.selectedColor == Just slot then
+                                .solid
+
+                              else
+                                .light
+                             )
+                                (Color.theme slot)
+                            )
+                        ]
+                    ]
+                    []
+                ]
+    in
+    div
+        [ Attributes.id "color-input"
+        , css
+            [ Css.displayFlex
+            , Css.alignItems Css.spaceAround
+            , Css.justifyContent Css.spaceAround
+            ]
+        ]
+        -- TODO: show disabled buttons for taken options
+        (List.map viewColorOption state.connectionStates.freeSlots)
 
 
 viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool } -> Html Msg
