@@ -334,46 +334,19 @@ view model =
                 ]
 
             Starting connectionStates ->
-                [ sidebarLayout
-                    { sidebar =
-                        [ viewConnectedPlayers connectionStates.connectedPlayers
-                        , viewStartButton False
-                        ]
-                    , board = [ staticBoard model.boardSvgPath ]
+                [ staticBoard model.boardSvgPath
+                , viewWaitingForPlayersModal
+                    { connectedPlayers = connectionStates.connectedPlayers
+                    , readyToStart = False
                     }
                 ]
 
             Playing gameState ->
-                [ sidebarLayout
-                    { sidebar = []
-                    , board =
-                        [ gameState
-                            |> Gameplay.view model.boardSvgPath
-                            |> Styled.fromUnstyled
-                            |> Styled.map GameplayMsg
-                        ]
-                    }
+                [ gameState
+                    |> Gameplay.view model.boardSvgPath
+                    |> Styled.fromUnstyled
+                    |> Styled.map GameplayMsg
                 ]
-
-
-sidebarLayout :
-    { sidebar : List (Styled.Html Msg)
-    , board : List (Styled.Html Msg)
-    }
-    -> Html Msg
-sidebarLayout { sidebar, board } =
-    div [ css [ Css.displayFlex ] ]
-        [ div
-            [ css
-                [ Css.width (px 300)
-                , Css.displayFlex
-                , Css.flexDirection Css.column
-                ]
-            ]
-            sidebar
-        , div [ css [ Css.flexGrow (Css.int 1) ] ]
-            board
-        ]
 
 
 viewModal : List (Html Msg) -> Html Msg
@@ -510,53 +483,13 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
                 ]
                 (List.map viewPlayer connectedPlayers)
             ]
-        , viewStartButton readyToStart
+        , Button.view
+            { label = "Empezar juego"
+            , isEnabled = readyToStart
+            , onClick = Just StartGameClicked
+            , css = [ Css.marginTop (px 25) ]
+            }
         ]
-
-
-viewConnectedPlayers : List Player -> Styled.Html Msg
-viewConnectedPlayers connectedPlayers =
-    -- TODO: delete!
-    let
-        viewPlayer player =
-            div
-                [ css
-                    [ Css.displayFlex
-                    , Css.alignItems Css.center
-                    , Css.padding2 (px 8) (px 4)
-                    , Css.backgroundColor (withAlpha 0.1 (Player.color player))
-                    ]
-                ]
-                [ div
-                    [ css
-                        [ Css.backgroundColor (withAlpha 1 (Player.color player))
-                        , Css.width (px 30)
-                        , Css.height (px 30)
-                        , Css.borderRadius (px 15)
-                        , Css.marginRight (px 10)
-                        ]
-                    ]
-                    []
-                , span [] [ text (Player.label player) ]
-                ]
-    in
-    div [ css [ Css.flexGrow (Css.int 1) ] ]
-        (if List.isEmpty connectedPlayers then
-            [ text "Esperando jugadores" ]
-
-         else
-            List.map viewPlayer connectedPlayers
-        )
-
-
-viewStartButton : Bool -> Styled.Html Msg
-viewStartButton isEnabled =
-    Button.view
-        { label = "Empezar juego"
-        , isEnabled = isEnabled
-        , onClick = Just StartGameClicked
-        , css = [ Css.marginTop (px 25) ]
-        }
 
 
 staticBoard : String -> Styled.Html Msg
