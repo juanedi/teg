@@ -239,6 +239,7 @@ view model =
         [ css
             [ Css.height (Css.vh 100)
             , Css.width (Css.vw 100)
+            , Css.fontFamilies [ "Antic Slab", "serif" ]
             ]
         ]
     <|
@@ -317,8 +318,8 @@ sidebarLayout { sidebar, board } =
         ]
 
 
-viewColorPickerModal : List Player -> Html Msg
-viewColorPickerModal freeSlots =
+viewModal : List (Html Msg) -> Html Msg
+viewModal contents =
     div
         [ css
             [ Css.position Css.fixed
@@ -329,7 +330,6 @@ viewColorPickerModal freeSlots =
             , Css.displayFlex
             , Css.justifyContent Css.center
             , Css.alignItems Css.center
-            , Css.fontFamilies [ "Antic Slab", "serif" ]
             , Css.fontSize (px 18)
             ]
         ]
@@ -341,46 +341,52 @@ viewColorPickerModal freeSlots =
                 , Css.boxShadow4 (px 1) (px 1) (px 2) (px 1)
                 ]
             ]
-            [ if List.isEmpty freeSlots then
-                text "No quedan lugares 💩"
+            contents
+        ]
 
-              else
-                div
+
+viewColorPickerModal : List Player -> Html Msg
+viewColorPickerModal freeSlots =
+    viewModal
+        [ if List.isEmpty freeSlots then
+            text "No quedan lugares 💩"
+
+          else
+            div
+                [ css
+                    [ Css.displayFlex
+                    , Css.justifyContent Css.center
+                    , Css.alignItems Css.center
+                    ]
+                ]
+                [ div [ css [ Css.marginRight (px 20) ] ] [ text "Color" ]
+                , div
                     [ css
                         [ Css.displayFlex
-                        , Css.justifyContent Css.center
-                        , Css.alignItems Css.center
+                        , Css.alignItems Css.spaceAround
+                        , Css.justifyContent Css.spaceAround
                         ]
                     ]
-                    [ div [ css [ Css.marginRight (px 20) ] ] [ text "Color" ]
-                    , div
-                        [ css
-                            [ Css.displayFlex
-                            , Css.alignItems Css.spaceAround
-                            , Css.justifyContent Css.spaceAround
-                            ]
-                        ]
-                        (List.map
-                            (\slot ->
-                                button
-                                    [ Events.onClick (PlayerPicked slot)
-                                    , css
-                                        [ Css.width (px 30)
-                                        , Css.height (px 30)
-                                        , Css.borderRadius (px 20)
-                                        , Css.backgroundColor (withAlpha 1 (Player.color slot))
-                                        , Css.backgroundColor (withAlpha 1 (Player.color slot))
-                                        , Css.borderStyle Css.none
-                                        , Css.marginRight (px 5)
-                                        , Css.lastChild [ Css.marginRight Css.zero ]
-                                        ]
+                    (List.map
+                        (\slot ->
+                            button
+                                [ Events.onClick (PlayerPicked slot)
+                                , css
+                                    [ Css.width (px 30)
+                                    , Css.height (px 30)
+                                    , Css.borderRadius (px 20)
+                                    , Css.backgroundColor (withAlpha 1 (Player.color slot))
+                                    , Css.backgroundColor (withAlpha 1 (Player.color slot))
+                                    , Css.borderStyle Css.none
+                                    , Css.marginRight (px 5)
+                                    , Css.lastChild [ Css.marginRight Css.zero ]
                                     ]
-                                    []
-                            )
-                            freeSlots
+                                ]
+                                []
                         )
-                    ]
-            ]
+                        freeSlots
+                    )
+                ]
         ]
 
 
