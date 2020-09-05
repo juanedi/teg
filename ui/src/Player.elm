@@ -1,12 +1,14 @@
 module Player exposing
     ( Player
-    , color
+    , colors
     , label
     , toUrlSegment
     )
 
 import Api
+import Css
 import Json.Encode as Encode
+import Ui.Color as Color
 
 
 type alias Player =
@@ -44,23 +46,35 @@ label player =
             "Magenta"
 
 
-color : Player -> { red : Int, green : Int, blue : Int }
-color player =
+colors : Player -> { light : Css.Color, solid : Css.Color }
+colors player =
     case player of
         Api.Blue ->
-            { red = 0, green = 0, blue = 255 }
+            { solid = Color.blueSolid
+            , light = Color.blueLight
+            }
 
         Api.Red ->
-            { red = 255, green = 0, blue = 0 }
+            { solid = Color.redSolid
+            , light = Color.redLight
+            }
 
         Api.Black ->
-            { red = 0, green = 0, blue = 0 }
+            { solid = Color.blackSolid
+            , light = Color.blackLight
+            }
 
         Api.Yellow ->
-            { red = 255, green = 234, blue = 0 }
+            { solid = Color.yellowSolid
+            , light = Color.yellowLight
+            }
 
         Api.Green ->
-            { red = 0, green = 255, blue = 0 }
+            { solid = Color.greenSolid
+            , light = Color.greenLight
+            }
 
         Api.Magenta ->
-            { red = 255, green = 0, blue = 255 }
+            { solid = Color.magentaSolid
+            , light = Color.magentaLight
+            }

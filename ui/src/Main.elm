@@ -16,6 +16,7 @@ import Json.Decode as Decode exposing (Value)
 import Json.Encode as Encode
 import Player exposing (Player)
 import Ui.Button as Button
+import Ui.Color as Color
 
 
 port sendPortCommand : Value -> Cmd msg
@@ -395,10 +396,10 @@ viewColorPickerModal state =
                     , Css.borderBottom3 (px 2)
                         Css.solid
                         (if state.selectedPlayer == Just slot || state.hoveredPlayer == Just slot then
-                            withAlpha 1 (Player.color slot)
+                            (Player.colors slot).solid
 
                          else
-                            Css.hex "#FFFFFF"
+                            Color.white
                         )
                     ]
                 ]
@@ -410,14 +411,13 @@ viewColorPickerModal state =
                         , Css.borderStyle Css.none
                         , Css.lastChild [ Css.marginRight zero ]
                         , Css.backgroundColor
-                            (withAlpha
-                                (if state.selectedPlayer == Just slot then
-                                    1
+                            ((if state.selectedPlayer == Just slot then
+                                .solid
 
-                                 else
-                                    0.4
-                                )
-                                (Player.color slot)
+                              else
+                                .light
+                             )
+                                (Player.colors slot)
                             )
                         ]
                     ]
@@ -461,7 +461,7 @@ viewWaitingForPlayersModal : { connectedPlayers : List Player, readyToStart : Bo
 viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
     let
         viewPlayer player =
-            div [ css [ Css.textDecoration3 Css.underline Css.solid (withAlpha 1 (Player.color player)) ] ]
+            div [ css [ Css.textDecoration3 Css.underline Css.solid (Player.colors player).solid ] ]
                 [ text (Player.label player)
                 ]
     in
