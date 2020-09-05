@@ -391,6 +391,7 @@ viewModal contents =
             , Css.justifyContent Css.center
             , Css.alignItems Css.center
             , Css.fontSize (px 18)
+            , Css.backgroundColor Theme.backdrop
             ]
         ]
         [ div
@@ -490,6 +491,10 @@ viewLobbyModal state =
                         , Attributes.type_ "text"
                         , Attributes.autofocus True
                         , Events.onInput NameChanged
+                        , css
+                            [ Css.width (px 170)
+                            , Css.height (px 25)
+                            ]
                         ]
                         []
                     )
@@ -517,12 +522,12 @@ viewLobbyModal state =
         )
 
 
-viewWaitingForPlayersModal : { connectedPlayers : List Color, readyToStart : Bool } -> Html Msg
+viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool } -> Html Msg
 viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
     let
-        viewPlayer player =
-            div [ css [ Css.textDecoration3 Css.underline Css.solid (Color.theme player).solid ] ]
-                [ text (Color.label player)
+        viewPlayer ( color, name ) =
+            div [ css [ Css.textDecoration3 Css.underline Css.solid (Color.theme color).solid ] ]
+                [ text name
                 ]
     in
     viewModal
