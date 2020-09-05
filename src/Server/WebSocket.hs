@@ -58,11 +58,15 @@ lobby state = do
   lobbyLoop chan (Game.Room.state room)
 
 lobbyLoop :: STM.TChan Game.Room.State -> Game.Room.State -> ConduitT () ConnectionStates (ResourceT IO) ()
-lobbyLoop chan roomState = do
-  let connectionStates = Game.Room.connectionStates roomState
-  yield connectionStates
-  roomState' <- State.runSTM (readTChan chan)
-  lobbyLoop chan roomState'
+lobbyLoop chan roomState =
+  let maybeLobbyUpdate = Game.Room.lobbyState roomState
+   in case maybeLobbyUpdate of
+        Nothing ->
+          return ()
+        Just connectionStates -> do
+          yield connectionStates
+          roomState' <- State.runSTM (readTChan chan)
+          lobbyLoop chan roomState'
 
 gameUpdates :: State -> Color -> UpdatesConduit
 gameUpdates state player =
