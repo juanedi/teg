@@ -4,6 +4,7 @@ import Api
 import Board
 import Browser
 import Browser.Events
+import Color exposing (Color)
 import Country exposing (Country)
 import Css exposing (px, zero)
 import Gameplay
@@ -14,9 +15,8 @@ import Html.Styled.Events as Events
 import Http
 import Json.Decode as Decode exposing (Value)
 import Json.Encode as Encode
-import Player exposing (Player)
 import Ui.Button as Button
-import Ui.Color as Color
+import Ui.Theme as Theme
 
 
 port sendPortCommand : Value -> Cmd msg
@@ -27,7 +27,7 @@ port portInfo : (Value -> msg) -> Sub msg
 
 type PortCommand
     = InitLobbySocket
-    | InitGameSocket Player
+    | InitGameSocket Color
 
 
 type PortInfo
@@ -49,7 +49,7 @@ type alias Model =
 type State
     = Loading
     | Lobby LobbyState
-    | Joining Player
+    | Joining Color
     | WaitingForPlayers Api.ConnectionStates
     | ReadyToStart Api.ConnectionStates
     | Starting Api.ConnectionStates
@@ -57,8 +57,9 @@ type State
 
 
 type alias LobbyState =
-    { selectedPlayer : Maybe Player
-    , hoveredPlayer : Maybe Player
+    { name : String
+    , selectedColor : Maybe Color
+    , hoveredColor : Maybe Color
     , connectionStates : Api.ConnectionStates
     }
 
@@ -66,9 +67,10 @@ type alias LobbyState =
 type Msg
     = JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
-    | MouseEnterOnPlayer Player
-    | MouseLeftPlayer Player
-    | PlayerPicked Player
+    | NameChanged String
+    | ColorHoveredIn Color
+    | ColorHoveredOut Color
+    | ColorPicked Color
     | JoinGameClicked
     | StartGameClicked
     | StartGameResponse (Result Http.Error ())
@@ -122,12 +124,12 @@ encodePortCommand cmd =
             Encode.object
                 [ ( "tag", Encode.string "init_lobby_socket" ) ]
 
-        InitGameSocket player ->
+        InitGameSocket color ->
             Encode.object
                 [ ( "tag", Encode.string "init_game_socket" )
                 , ( "data"
-                  , player
-                        |> Player.toUrlSegment
+                  , color
+                        |> Color.toUrlSegment
                         |> Encode.string
                   )
                 ]
@@ -138,11 +140,11 @@ update msg model =
     case msg of
         JoinResponse result ->
             case model.state of
-                Joining player ->
+                Joining color ->
                     case result of
                         Ok _ ->
                             ( { model | state = Loading }
-                            , InitGameSocket player
+                            , InitGameSocket color
                                 |> encodePortCommand
                                 |> sendPortCommand
                             )
@@ -162,8 +164,9 @@ update msg model =
                             ( { model
                                 | state =
                                     Lobby
-                                        { selectedPlayer = Nothing
-                                        , hoveredPlayer = Nothing
+                                        { name = ""
+                                        , selectedColor = Nothing
+                                        , hoveredColor = Nothing
                                         , connectionStates = connectionStates
                                         }
                               }
@@ -212,21 +215,31 @@ update msg model =
                     -- TODO: handle error
                     ( model, Cmd.none )
 
-        MouseEnterOnPlayer player ->
+        NameChanged input ->
             ( case model.state of
                 Lobby lobbyState ->
-                    { model | state = Lobby { lobbyState | hoveredPlayer = Just player } }
+                    { model | state = Lobby { lobbyState | name = input } }
 
                 _ ->
                     model
             , Cmd.none
             )
 
-        MouseLeftPlayer player ->
+        ColorHoveredIn player ->
             ( case model.state of
                 Lobby lobbyState ->
-                    if lobbyState.hoveredPlayer == Just player then
-                        { model | state = Lobby { lobbyState | hoveredPlayer = Nothing } }
+                    { model | state = Lobby { lobbyState | hoveredColor = Just player } }
+
+                _ ->
+                    model
+            , Cmd.none
+            )
+
+        ColorHoveredOut player ->
+            ( case model.state of
+                Lobby lobbyState ->
+                    if lobbyState.hoveredColor == Just player then
+                        { model | state = Lobby { lobbyState | hoveredColor = Nothing } }
 
                     else
                         model
@@ -236,10 +249,10 @@ update msg model =
             , Cmd.none
             )
 
-        PlayerPicked player ->
+        ColorPicked player ->
             case model.state of
                 Lobby lobbyState ->
-                    ( { model | state = Lobby { lobbyState | selectedPlayer = Just player } }
+                    ( { model | state = Lobby { lobbyState | selectedColor = Just player } }
                     , Cmd.none
                     )
 
@@ -248,11 +261,11 @@ update msg model =
 
         JoinGameClicked ->
             case model.state of
-                Lobby { selectedPlayer } ->
-                    case selectedPlayer of
-                        Just player ->
-                            ( { model | state = Joining player }
-                            , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
+                Lobby lobbyState ->
+                    case validateLobbyInput lobbyState of
+                        Just { name, selectedColor } ->
+                            ( { model | state = Joining selectedColor }
+                            , Api.postJoinByColorByName (Color.toUrlSegment selectedColor) name JoinResponse
                             )
 
                         Nothing ->
@@ -290,6 +303,21 @@ update msg model =
                     ( model, Cmd.none )
 
 
+validateLobbyInput : LobbyState -> Maybe { name : String, selectedColor : Color }
+validateLobbyInput lobbyState =
+    -- TODO: check that the name is not repeated
+    case lobbyState.selectedColor of
+        Nothing ->
+            Nothing
+
+        Just color ->
+            if String.isEmpty (String.trim lobbyState.name) then
+                Nothing
+
+            else
+                Just { name = lobbyState.name, selectedColor = color }
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     portInfo PortInfoReceived
@@ -311,10 +339,10 @@ view model =
 
             Lobby lobbyState ->
                 [ staticBoard model.boardSvgPath
-                , viewColorPickerModal lobbyState
+                , viewLobbyModal lobbyState
                 ]
 
-            Joining player ->
+            Joining color ->
                 [ staticBoard model.boardSvgPath
                 ]
 
@@ -363,6 +391,7 @@ viewModal contents =
             , Css.justifyContent Css.center
             , Css.alignItems Css.center
             , Css.fontSize (px 18)
+            , Css.backgroundColor Theme.backdrop
             ]
         ]
         [ div
@@ -380,14 +409,14 @@ viewModal contents =
         ]
 
 
-viewColorPickerModal : LobbyState -> Html Msg
-viewColorPickerModal state =
+viewLobbyModal : LobbyState -> Html Msg
+viewLobbyModal state =
     let
         colorOption slot =
             button
-                [ Events.onClick (PlayerPicked slot)
-                , Events.onMouseEnter (MouseEnterOnPlayer slot)
-                , Events.onMouseLeave (MouseLeftPlayer slot)
+                [ Events.onClick (ColorPicked slot)
+                , Events.onMouseEnter (ColorHoveredIn slot)
+                , Events.onMouseLeave (ColorHoveredOut slot)
                 , css
                     [ Css.marginRight (px 5)
                     , Css.backgroundColor Css.unset
@@ -395,11 +424,11 @@ viewColorPickerModal state =
                     , Css.padding4 zero zero (px 2) zero
                     , Css.borderBottom3 (px 2)
                         Css.solid
-                        (if state.selectedPlayer == Just slot || state.hoveredPlayer == Just slot then
-                            (Player.colors slot).solid
+                        (if state.selectedColor == Just slot || state.hoveredColor == Just slot then
+                            (Color.theme slot).solid
 
                          else
-                            Color.white
+                            Theme.white
                         )
                     ]
                 ]
@@ -411,17 +440,35 @@ viewColorPickerModal state =
                         , Css.borderStyle Css.none
                         , Css.lastChild [ Css.marginRight zero ]
                         , Css.backgroundColor
-                            ((if state.selectedPlayer == Just slot then
+                            ((if state.selectedColor == Just slot then
                                 .solid
 
                               else
                                 .light
                              )
-                                (Player.colors slot)
+                                (Color.theme slot)
                             )
                         ]
                     ]
                     []
+                ]
+
+        inputRow id fieldLabel inputMarkup =
+            div
+                [ css
+                    [ Css.displayFlex
+                    , Css.justifyContent Css.spaceBetween
+                    , Css.alignItems Css.center
+                    , Css.marginBottom (px 30)
+                    , Css.width (Css.pct 100)
+                    ]
+                ]
+                [ label
+                    [ Attributes.for id
+                    , css [ Css.marginRight (px 30) ]
+                    ]
+                    [ text fieldLabel ]
+                , inputMarkup
                 ]
     in
     viewModal
@@ -433,23 +480,41 @@ viewColorPickerModal state =
             , div
                 [ css
                     [ Css.displayFlex
-                    , Css.justifyContent Css.center
-                    , Css.alignItems Css.center
+                    , Css.flexDirection Css.column
+                    , Css.alignItems Css.stretch
                     ]
                 ]
-                [ div [ css [ Css.marginRight (px 20) ] ] [ text "Color" ]
-                , div
-                    [ css
-                        [ Css.displayFlex
-                        , Css.alignItems Css.spaceAround
-                        , Css.justifyContent Css.spaceAround
+                [ inputRow "name-input"
+                    "Nombre"
+                    (input
+                        [ Attributes.id "name-input"
+                        , Attributes.type_ "text"
+                        , Attributes.autofocus True
+                        , Events.onInput NameChanged
+                        , css
+                            [ Css.width (px 170)
+                            , Css.height (px 25)
+                            ]
                         ]
-                    ]
-                    (List.map colorOption state.connectionStates.freeSlots)
+                        []
+                    )
+                , inputRow "color-input"
+                    "Color"
+                    (div
+                        [ Attributes.id "color-input"
+                        , css
+                            [ Css.displayFlex
+                            , Css.alignItems Css.spaceAround
+                            , Css.justifyContent Css.spaceAround
+                            ]
+                        ]
+                        -- TODO: show disabled buttons for taken options
+                        (List.map colorOption state.connectionStates.freeSlots)
+                    )
                 ]
             , Button.view
-                { label = "Elegir"
-                , isEnabled = state.selectedPlayer /= Nothing
+                { label = "Entrar"
+                , isEnabled = validateLobbyInput state /= Nothing
                 , onClick = Just JoinGameClicked
                 , css = [ Css.marginTop (px 25) ]
                 }
@@ -457,12 +522,12 @@ viewColorPickerModal state =
         )
 
 
-viewWaitingForPlayersModal : { connectedPlayers : List Player, readyToStart : Bool } -> Html Msg
+viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool } -> Html Msg
 viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
     let
-        viewPlayer player =
-            div [ css [ Css.textDecoration3 Css.underline Css.solid (Player.colors player).solid ] ]
-                [ text (Player.label player)
+        viewPlayer ( color, name ) =
+            div [ css [ Css.textDecoration3 Css.underline Css.solid (Color.theme color).solid ] ]
+                [ text name
                 ]
     in
     viewModal

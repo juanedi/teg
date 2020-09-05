@@ -3,7 +3,7 @@ module Game.Room
     ClientChannel,
     State,
     Game.Room.init,
-    connectionStates,
+    lobbyState,
     subscribe,
     join,
     startGame,
@@ -21,9 +21,10 @@ import Control.Concurrent.STM (STM)
 import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChan, writeTChan)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Text (Text)
 import qualified Game
-import Game.Player (Player)
-import qualified Game.Player as Player
+import Game.Color (Color)
+import qualified Game.Color as Color
 import qualified Game.TurnList as TurnList
 import Result (Error (..), Result (..))
 
@@ -35,17 +36,17 @@ data Room = Room
   }
 
 data State
-  = WaitingForPlayers (Map Player ConnectionState)
-  | Started (Map Player ClientChannel) Game.State
+  = WaitingForPlayers (Map Color ConnectionState)
+  | Started (Map Color ClientChannel) Game.State
 
 data ConnectionState
   = -- we are waiting for someone to join as this player
     Waiting
   | -- the slot is taken and we are waiting for the client to open the websocket
     -- connection
-    Connecting
+    Connecting Text
   | -- we have an active connection to the player
-    Connected ClientChannel
+    Connected Text ClientChannel
 
 type ClientChannel = TChan State
 
@@ -58,42 +59,52 @@ init = do
         state = WaitingForPlayers (Map.empty)
       }
 
-connectionStates :: State -> ConnectionStates
-connectionStates state =
+lobbyState :: State -> Maybe ConnectionStates
+lobbyState state =
   case state of
     WaitingForPlayers connectionStates ->
-      ConnectionStates
-        { connectedPlayers = Map.keys connectionStates,
-          freeSlots =
-            filter
-              ( \p -> case getConnectionState p connectionStates of
-                  Waiting -> True
-                  _ -> False
-              )
-              Player.all
-        }
+      Just $ clientConnectionStates connectionStates
     Started playerChannels _ ->
-      ConnectionStates
-        { connectedPlayers = Map.keys playerChannels,
-          freeSlots = []
-        }
+      Nothing
+
+clientConnectionStates :: Map Color ConnectionState -> ConnectionStates
+clientConnectionStates connectionStates =
+  ConnectionStates
+    { connectedPlayers =
+        foldl
+          ( \result color ->
+              case getConnectionState color connectionStates of
+                Waiting -> result
+                Connecting name -> (color, name) : result
+                Connected name _ -> (color, name) : result
+          )
+          []
+          Color.all,
+      freeSlots =
+        filter
+          ( \p -> case getConnectionState p connectionStates of
+              Waiting -> True
+              _ -> False
+          )
+          Color.all
+    }
 
 subscribe :: Room -> STM (TChan State)
 subscribe room =
   dupTChan (broadcastChannel room)
 
-getConnectionState :: Player -> Map Player ConnectionState -> ConnectionState
+getConnectionState :: Color -> Map Color ConnectionState -> ConnectionState
 getConnectionState =
   Map.findWithDefault Waiting
 
-join :: Player -> Room -> Result Room ()
-join player room =
+join :: Color -> Text -> Room -> Result Room ()
+join color name room =
   case state room of
     WaitingForPlayers connectionStates ->
-      case getConnectionState player connectionStates of
+      case getConnectionState color connectionStates of
         Waiting ->
           ( Right (),
-            room {state = WaitingForPlayers (Map.insert player Connecting connectionStates)}
+            room {state = WaitingForPlayers (Map.insert color (Connecting name) connectionStates)}
           )
         _ ->
           ( Left (InvalidMove "Trying to join a game but all slots are taken"),
@@ -112,28 +123,38 @@ startGame room =
         Nothing ->
           (Left (InvalidMove "Still waiting for players to join or connect"), room)
         Just playerChannels ->
-          case Map.keys playerChannels of
+          case Map.toList playerChannels of
             [] ->
               -- NOTE: this shouldn't happen!
               (Left (InvalidMove "Still waiting for players to join or connect"), room)
-            firstPlayer : otherPlayers ->
-              ( Left (InvalidMove "Still waiting for players to join or connect"),
-                room {state = Started playerChannels (Game.init (TurnList.init firstPlayer otherPlayers))}
-              )
+            (color0, (name0, _)) : otherPlayers ->
+              let turnList =
+                    ( TurnList.init
+                        (color0, name0)
+                        (map (\(color, (name, _)) -> (color, name)) otherPlayers)
+                    )
+               in ( Right (),
+                    room
+                      { state =
+                          Started
+                            (Map.map snd playerChannels)
+                            (Game.init turnList)
+                      }
+                  )
     Started _ _ ->
       ( Left (InvalidMove "Trying to start a game that has already started"),
         room
       )
 
-playerConnected :: Player -> Room -> STM (Maybe ClientChannel, Room)
+playerConnected :: Color -> Room -> STM (Maybe ClientChannel, Room)
 playerConnected player room =
   case state room of
     WaitingForPlayers connectionStates ->
       case getConnectionState player connectionStates of
-        Connecting ->
+        Connecting name ->
           do
             playerChannel <- dupTChan (broadcastChannel room)
-            let connectionStates_ = Map.insert player (Connected playerChannel) connectionStates
+            let connectionStates_ = Map.insert player (Connected name playerChannel) connectionStates
             pure
               ( Just playerChannel,
                 room {state = WaitingForPlayers connectionStates_}
@@ -143,13 +164,13 @@ playerConnected player room =
     Started _ _ ->
       pure (Nothing, room)
 
-checkReady :: Map Player ConnectionState -> Maybe (Map Player ClientChannel)
+checkReady :: Map Color ConnectionState -> Maybe (Map Color (Text, ClientChannel))
 checkReady connectionStates =
   let playerChannels =
         foldr
           ( \player result ->
               case getConnectionState player connectionStates of
-                Connected channel -> Map.insert player channel result
+                Connected name channel -> Map.insert player (name, channel) result
                 _ -> result
           )
           (Map.empty)
@@ -162,15 +183,15 @@ broadcastChanges :: Room -> STM ()
 broadcastChanges room =
   writeTChan (broadcastChannel room) (state room)
 
-clientState :: Player -> State -> Client.Room.Room
+clientState :: Color -> State -> Client.Room.Room
 clientState player state =
   case state of
     WaitingForPlayers connections ->
       case checkReady connections of
         Nothing ->
-          Client.Room.WaitingForPlayers (connectionStates state)
+          Client.Room.WaitingForPlayers (clientConnectionStates connections)
         Just _ ->
-          Client.Room.ReadyToStart (connectionStates state)
+          Client.Room.ReadyToStart (clientConnectionStates connections)
     Started _ gameState ->
       Client.Room.Started (Game.playerState player gameState)
 

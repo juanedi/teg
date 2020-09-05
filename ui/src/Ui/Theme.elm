@@ -1,4 +1,4 @@
-module Ui.Color exposing (..)
+module Ui.Theme exposing (..)
 
 import Css exposing (Color)
 
@@ -15,6 +15,11 @@ white =
 grey : Color
 grey =
     Css.hex "#CACACA"
+
+
+backdrop : Color
+backdrop =
+    Css.rgba 0 0 0 0.2
 
 
 

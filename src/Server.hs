@@ -15,7 +15,7 @@ import Data.Text (Text)
 import qualified Data.Text.Lazy
 import Data.Text.Lazy.Encoding (encodeUtf8)
 import qualified Game
-import Game (Country, Player)
+import Game (Color, Country)
 import Game.Room (Room)
 import qualified Game.Room as Room
 import Network.Wai
@@ -34,9 +34,9 @@ import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
 type APIRoutes =
-  "join" :> Capture "player" Text :> Post '[JSON] ()
+  "join" :> Capture "color" Text :> Capture "name" Text :> Post '[JSON] ()
     :<|> "start" :> Post '[JSON] ()
-    :<|> "paint" :> ReqBody '[JSON] (Player, Country) :> PostNoContent '[JSON] ()
+    :<|> "paint" :> ReqBody '[JSON] (Color, Country) :> PostNoContent '[JSON] ()
 
 type StaticContentRoutes =
   "_build" :> Raw
@@ -89,7 +89,7 @@ api = Proxy
 
 gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
 gameApiServer runAction =
-  runAction . joinGame
+  (\color name -> runAction (joinGame color name))
     :<|> runAction startGame
     :<|> runAction . paintCountry
 
@@ -98,11 +98,11 @@ staticContentServer =
   serveDirectoryWebApp "ui/_build"
     :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
 
-joinGame :: Text -> Action ()
-joinGame playerId room =
-  case parseUrlPiece playerId :: Either Text Player of
-    Right player ->
-      Room.join player room
+joinGame :: Text -> Text -> Action ()
+joinGame colorId name room =
+  case parseUrlPiece colorId :: Either Text Color of
+    Right color ->
+      Room.join color name room
     Left err ->
       ( Left (InvalidMove ("Could not parse player from url param")),
         room
@@ -112,7 +112,7 @@ startGame :: Action ()
 startGame room =
   Room.startGame room
 
-paintCountry :: (Player, Country) -> Action ()
+paintCountry :: (Color, Country) -> Action ()
 paintCountry (player, country) =
   Room.updateGame
     ( \gameState ->
