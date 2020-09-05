@@ -61,10 +61,20 @@ init = do
 
 connectionStates :: State -> ConnectionStates
 connectionStates state =
+  -- TODO: send names!
   case state of
     WaitingForPlayers connectionStates ->
       ConnectionStates
-        { connectedPlayers = Map.keys connectionStates,
+        { connectedPlayers =
+            foldl
+              ( \result color ->
+                  case getConnectionState color connectionStates of
+                    Waiting -> result
+                    Connecting name -> (color, name) : result
+                    Connected name _ -> (color, name) : result
+              )
+              []
+              Color.all,
           freeSlots =
             filter
               ( \p -> case getConnectionState p connectionStates of
@@ -74,8 +84,9 @@ connectionStates state =
               Color.all
         }
     Started playerChannels _ ->
+      -- FIXME: we shouldn't need to call this once the game is started
       ConnectionStates
-        { connectedPlayers = Map.keys playerChannels,
+        { connectedPlayers = [],
           freeSlots = []
         }
 

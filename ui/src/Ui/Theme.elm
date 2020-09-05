@@ -17,6 +17,11 @@ grey =
     Css.hex "#CACACA"
 
 
+backdrop : Color
+backdrop =
+    Css.rgba 0 0 0 0.2
+
+
 
 --  PLAYER COLORS
 
