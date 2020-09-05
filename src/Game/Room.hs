@@ -3,7 +3,7 @@ module Game.Room
     ClientChannel,
     State,
     Game.Room.init,
-    connectionStates,
+    lobbyState,
     subscribe,
     join,
     startGame,
@@ -59,36 +59,35 @@ init = do
         state = WaitingForPlayers (Map.empty)
       }
 
-connectionStates :: State -> ConnectionStates
-connectionStates state =
-  -- TODO: send names!
+lobbyState :: State -> Maybe ConnectionStates
+lobbyState state =
   case state of
     WaitingForPlayers connectionStates ->
-      ConnectionStates
-        { connectedPlayers =
-            foldl
-              ( \result color ->
-                  case getConnectionState color connectionStates of
-                    Waiting -> result
-                    Connecting name -> (color, name) : result
-                    Connected name _ -> (color, name) : result
-              )
-              []
-              Color.all,
-          freeSlots =
-            filter
-              ( \p -> case getConnectionState p connectionStates of
-                  Waiting -> True
-                  _ -> False
-              )
-              Color.all
-        }
+      Just $ clientConnectionStates connectionStates
     Started playerChannels _ ->
-      -- FIXME: we shouldn't need to call this once the game is started
-      ConnectionStates
-        { connectedPlayers = [],
-          freeSlots = []
-        }
+      Nothing
+
+clientConnectionStates :: Map Color ConnectionState -> ConnectionStates
+clientConnectionStates connectionStates =
+  ConnectionStates
+    { connectedPlayers =
+        foldl
+          ( \result color ->
+              case getConnectionState color connectionStates of
+                Waiting -> result
+                Connecting name -> (color, name) : result
+                Connected name _ -> (color, name) : result
+          )
+          []
+          Color.all,
+      freeSlots =
+        filter
+          ( \p -> case getConnectionState p connectionStates of
+              Waiting -> True
+              _ -> False
+          )
+          Color.all
+    }
 
 subscribe :: Room -> STM (TChan State)
 subscribe room =
@@ -190,9 +189,9 @@ clientState player state =
     WaitingForPlayers connections ->
       case checkReady connections of
         Nothing ->
-          Client.Room.WaitingForPlayers (connectionStates state)
+          Client.Room.WaitingForPlayers (clientConnectionStates connections)
         Just _ ->
-          Client.Room.ReadyToStart (connectionStates state)
+          Client.Room.ReadyToStart (clientConnectionStates connections)
     Started _ gameState ->
       Client.Room.Started (Game.playerState player gameState)
 
