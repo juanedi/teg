@@ -57,7 +57,7 @@ color player =
             { red = 0, green = 0, blue = 0 }
 
         Api.Yellow ->
-            { red = 255, green = 255, blue = 0 }
+            { red = 255, green = 234, blue = 0 }
 
         Api.Green ->
             { red = 0, green = 255, blue = 0 }
