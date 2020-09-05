@@ -3,7 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Game.Player (Player, Game.Player.all) where
+module Game.Color (Color, Game.Color.all) where
 
 import Data.Foldable (find)
 import Data.String (fromString)
@@ -12,7 +12,7 @@ import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import qualified Server.Serialization as Serialization
 import Web.HttpApiData (FromHttpApiData (..))
 
-data Player
+data Color
   = Blue
   | Red
   | Black
@@ -21,22 +21,22 @@ data Player
   | Magenta
   deriving (Eq, Ord, Show)
 
-deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''Player
+deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''Color
 
-instance FromHttpApiData Player where
-  parseUrlPiece :: Text -> Either Text Player
+instance FromHttpApiData Color where
+  parseUrlPiece :: Text -> Either Text Color
   parseUrlPiece fragment =
-    case find (matchesUrlPiece fragment) Game.Player.all of
+    case find (matchesUrlPiece fragment) Game.Color.all of
       Just player ->
         Right player
       Nothing ->
         Left ("Could not interpret player from url fragment '" <> fragment <> "''")
 
-matchesUrlPiece :: Text -> Player -> Bool
+matchesUrlPiece :: Text -> Color -> Bool
 matchesUrlPiece fragment player =
   fromString (Serialization.tagToApiLabel (show player)) == fragment
 
-all :: [Player]
+all :: [Color]
 all =
   [ Blue,
     Red,

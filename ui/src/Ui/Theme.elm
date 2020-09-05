@@ -1,4 +1,4 @@
-module Ui.Color exposing (..)
+module Ui.Theme exposing (..)
 
 import Css exposing (Color)
 

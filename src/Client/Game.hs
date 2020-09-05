@@ -6,11 +6,11 @@ module Client.Game (Game (..), Instructions (..)) where
 
 import Elm.Derive (defaultOptions, deriveBoth)
 import Game.Country (Country)
-import Game.Player (Player)
+import Game.Color (Color)
 
 data Game = Game
-  { identity :: Player,
-    paintedCountries :: [(Country, Player)],
+  { identity :: Color,
+    paintedCountries :: [(Country, Color)],
     instructions :: Instructions
   }
 
