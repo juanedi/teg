@@ -23,7 +23,7 @@ library
                      , Client.ConnectionStates
                      , Game
                      , Game.Country
-                     , Game.Player
+                     , Game.Color
                      , Game.Room
                      , Game.TurnList
                      , Result

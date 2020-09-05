@@ -4,12 +4,13 @@
 
 module Client.ConnectionStates (ConnectionStates (..)) where
 
+import Data.Text (Text)
 import Elm.Derive (defaultOptions, deriveBoth)
-import Game.Player (Player)
+import Game.Color (Color)
 
 data ConnectionStates = ConnectionStates
-  { connectedPlayers :: [Player],
-    freeSlots :: [Player]
+  { connectedPlayers :: [(Color, Text)],
+    freeSlots :: [Color]
   }
 
 deriveBoth defaultOptions ''ConnectionStates

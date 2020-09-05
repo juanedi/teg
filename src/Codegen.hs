@@ -24,7 +24,7 @@ run =
           defElmImports
           outputDir
           [ DefineElm (Proxy :: Proxy Game.Country),
-            DefineElm (Proxy :: Proxy Game.Player),
+            DefineElm (Proxy :: Proxy Game.Color),
             DefineElm (Proxy :: Proxy Client.Game.Game),
             DefineElm (Proxy :: Proxy Client.Game.Instructions),
             DefineElm (Proxy :: Proxy Client.ConnectionStates.ConnectionStates),
