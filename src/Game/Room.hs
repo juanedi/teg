@@ -22,8 +22,8 @@ import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChan, writeTC
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Game
-import Game.Player (Player)
-import qualified Game.Player as Player
+import Game.Color (Color)
+import qualified Game.Color as Color
 import qualified Game.TurnList as TurnList
 import Result (Error (..), Result (..))
 
@@ -35,8 +35,8 @@ data Room = Room
   }
 
 data State
-  = WaitingForPlayers (Map Player ConnectionState)
-  | Started (Map Player ClientChannel) Game.State
+  = WaitingForPlayers (Map Color ConnectionState)
+  | Started (Map Color ClientChannel) Game.State
 
 data ConnectionState
   = -- we are waiting for someone to join as this player
@@ -70,7 +70,7 @@ connectionStates state =
                   Waiting -> True
                   _ -> False
               )
-              Player.all
+              Color.all
         }
     Started playerChannels _ ->
       ConnectionStates
@@ -82,11 +82,11 @@ subscribe :: Room -> STM (TChan State)
 subscribe room =
   dupTChan (broadcastChannel room)
 
-getConnectionState :: Player -> Map Player ConnectionState -> ConnectionState
+getConnectionState :: Color -> Map Color ConnectionState -> ConnectionState
 getConnectionState =
   Map.findWithDefault Waiting
 
-join :: Player -> Room -> Result Room ()
+join :: Color -> Room -> Result Room ()
 join player room =
   case state room of
     WaitingForPlayers connectionStates ->
@@ -125,7 +125,7 @@ startGame room =
         room
       )
 
-playerConnected :: Player -> Room -> STM (Maybe ClientChannel, Room)
+playerConnected :: Color -> Room -> STM (Maybe ClientChannel, Room)
 playerConnected player room =
   case state room of
     WaitingForPlayers connectionStates ->
@@ -143,7 +143,7 @@ playerConnected player room =
     Started _ _ ->
       pure (Nothing, room)
 
-checkReady :: Map Player ConnectionState -> Maybe (Map Player ClientChannel)
+checkReady :: Map Color ConnectionState -> Maybe (Map Color ClientChannel)
 checkReady connectionStates =
   let playerChannels =
         foldr
@@ -162,7 +162,7 @@ broadcastChanges :: Room -> STM ()
 broadcastChanges room =
   writeTChan (broadcastChannel room) (state room)
 
-clientState :: Player -> State -> Client.Room.Room
+clientState :: Color -> State -> Client.Room.Room
 clientState player state =
   case state of
     WaitingForPlayers connections ->

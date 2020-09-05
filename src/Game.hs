@@ -1,7 +1,7 @@
 module Game
   ( State,
     Country,
-    Player (..),
+    Color (..),
     Game.init,
     paintCountry,
     playerState,
@@ -12,24 +12,24 @@ import qualified Client.Game
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Game.Country (Country (..))
-import Game.Player (Player (..))
+import Game.Color (Color (..))
 import Game.TurnList (TurnList)
 import qualified Game.TurnList as TurnList
 import Result (Error (..))
 
 data State = State
-  { players :: TurnList Player,
-    paintedCountries :: Map Country Player
+  { players :: TurnList Color,
+    paintedCountries :: Map Country Color
   }
 
-init :: TurnList Player -> State
+init :: TurnList Color -> State
 init players =
   State
     { players = players,
       paintedCountries = Map.empty
     }
 
-playerState :: Player -> State -> Client.Game.Game
+playerState :: Color -> State -> Client.Game.Game
 playerState player state =
   Client.Game.Game
     { Client.Game.identity = player,
@@ -41,7 +41,7 @@ playerState player state =
           else Client.Game.Wait
     }
 
-paintCountry :: Player -> Country -> State -> Either Error State
+paintCountry :: Color -> Country -> State -> Either Error State
 paintCountry player country state =
   if player == TurnList.current (players state)
     then

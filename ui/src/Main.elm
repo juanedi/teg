@@ -4,6 +4,7 @@ import Api
 import Board
 import Browser
 import Browser.Events
+import Color exposing (Color)
 import Country exposing (Country)
 import Css exposing (px, zero)
 import Gameplay
@@ -14,9 +15,8 @@ import Html.Styled.Events as Events
 import Http
 import Json.Decode as Decode exposing (Value)
 import Json.Encode as Encode
-import Player exposing (Player)
 import Ui.Button as Button
-import Ui.Color as Color
+import Ui.Theme as Theme
 
 
 port sendPortCommand : Value -> Cmd msg
@@ -27,7 +27,7 @@ port portInfo : (Value -> msg) -> Sub msg
 
 type PortCommand
     = InitLobbySocket
-    | InitGameSocket Player
+    | InitGameSocket Color
 
 
 type PortInfo
@@ -49,7 +49,7 @@ type alias Model =
 type State
     = Loading
     | Lobby LobbyState
-    | Joining Player
+    | Joining Color
     | WaitingForPlayers Api.ConnectionStates
     | ReadyToStart Api.ConnectionStates
     | Starting Api.ConnectionStates
@@ -57,8 +57,8 @@ type State
 
 
 type alias LobbyState =
-    { selectedPlayer : Maybe Player
-    , hoveredPlayer : Maybe Player
+    { selectedPlayer : Maybe Color
+    , hoveredPlayer : Maybe Color
     , connectionStates : Api.ConnectionStates
     }
 
@@ -66,9 +66,9 @@ type alias LobbyState =
 type Msg
     = JoinResponse (Result Http.Error ())
     | PortInfoReceived Decode.Value
-    | MouseEnterOnPlayer Player
-    | MouseLeftPlayer Player
-    | PlayerPicked Player
+    | MouseEnterOnPlayer Color
+    | MouseLeftPlayer Color
+    | PlayerPicked Color
     | JoinGameClicked
     | StartGameClicked
     | StartGameResponse (Result Http.Error ())
@@ -127,7 +127,7 @@ encodePortCommand cmd =
                 [ ( "tag", Encode.string "init_game_socket" )
                 , ( "data"
                   , player
-                        |> Player.toUrlSegment
+                        |> Color.toUrlSegment
                         |> Encode.string
                   )
                 ]
@@ -252,7 +252,7 @@ update msg model =
                     case selectedPlayer of
                         Just player ->
                             ( { model | state = Joining player }
-                            , Api.postJoinByPlayer (Player.toUrlSegment player) JoinResponse
+                            , Api.postJoinByPlayer (Color.toUrlSegment player) JoinResponse
                             )
 
                         Nothing ->
@@ -396,10 +396,10 @@ viewColorPickerModal state =
                     , Css.borderBottom3 (px 2)
                         Css.solid
                         (if state.selectedPlayer == Just slot || state.hoveredPlayer == Just slot then
-                            (Player.colors slot).solid
+                            (Color.theme slot).solid
 
                          else
-                            Color.white
+                            Theme.white
                         )
                     ]
                 ]
@@ -417,7 +417,7 @@ viewColorPickerModal state =
                               else
                                 .light
                              )
-                                (Player.colors slot)
+                                (Color.theme slot)
                             )
                         ]
                     ]
@@ -457,12 +457,12 @@ viewColorPickerModal state =
         )
 
 
-viewWaitingForPlayersModal : { connectedPlayers : List Player, readyToStart : Bool } -> Html Msg
+viewWaitingForPlayersModal : { connectedPlayers : List Color, readyToStart : Bool } -> Html Msg
 viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
     let
         viewPlayer player =
-            div [ css [ Css.textDecoration3 Css.underline Css.solid (Player.colors player).solid ] ]
-                [ text (Player.label player)
+            div [ css [ Css.textDecoration3 Css.underline Css.solid (Color.theme player).solid ] ]
+                [ text (Color.label player)
                 ]
     in
     viewModal
