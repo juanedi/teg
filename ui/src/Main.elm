@@ -473,6 +473,7 @@ viewLobbyModal state =
 
 viewColorPicker : String -> LobbyState -> Html Msg
 viewColorPicker id state =
+    -- TODO: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/ARIA_Techniques/Using_the_radio_role
     let
         viewColorOption slot =
             button
