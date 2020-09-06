@@ -63,4 +63,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
   fd.onmessage = function (event) {
     console.log("FD: got a message", event.data)
   }
+
+  window.setTimeout(function() {
+    fd.send("Hello world!")
+  }, 4000)
 })
