@@ -23,6 +23,7 @@ import Network.Wai.Handler.Warp
 import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
 import Result (Error (..), Result (..))
 import Servant
+import qualified Server.FullDuplexWebSocket as FullDuplexWebSocket
 import Server.State (State)
 import qualified Server.State as State
 import qualified Server.WebSocket as WebSocket
@@ -42,7 +43,7 @@ type StaticContentRoutes =
   "_build" :> Raw
     :<|> Raw
 
-type Routes = APIRoutes :<|> WebSocket.Routes :<|> StaticContentRoutes
+type Routes = APIRoutes :<|> WebSocket.Routes :<|> FullDuplexWebSocket.WebSocketApi :<|> StaticContentRoutes
 
 {- Represents a pure computation that depends on the current state.
 
@@ -82,6 +83,7 @@ app state =
   serve api $
     gameApiServer (runAction state)
       :<|> WebSocket.server state
+      :<|> FullDuplexWebSocket.server
       :<|> staticContentServer
 
 api :: Proxy Routes

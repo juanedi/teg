@@ -53,4 +53,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
       console.error("Unrecognized command sent through port", cmd)
     }
   })
+
+  const fd = new WebSocket("ws://localhost:5000/stream/")
+
+  fd.onopen = function (event) {
+    console.log("FD: connection succeeded!")
+  }
+
+  fd.onmessage = function (event) {
+    console.log("FD: got a message", event.data)
+  }
 })
