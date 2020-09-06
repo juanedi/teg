@@ -26,6 +26,8 @@ library
                      , Game.Color
                      , Game.Room
                      , Game.TurnList
+                     , Game.Room
+                     , Game2.Room
                      , Result
                      , Server.Serialization
                      , Server.State
