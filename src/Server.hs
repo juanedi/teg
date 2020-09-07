@@ -3,11 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Server
-  ( Server.run,
-    APIRoutes,
-  )
-where
+module Server (Server.run) where
 
 import qualified Data.ByteString.Lazy
 import Data.Maybe (fromMaybe)
@@ -23,7 +19,7 @@ import Network.Wai.Handler.Warp
 import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
 import Result (Error (..), Result (..))
 import Servant
-import qualified Server.FullDuplexWebSocket as FullDuplexWebSocket
+import qualified Server.WebSocket as WebSocket
 import Server.State (State)
 import qualified Server.State as State
 import qualified Server.WebSocket as WebSocket
@@ -34,16 +30,13 @@ import qualified System.Log.FastLogger.Date as Date
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
-type APIRoutes =
-  "join" :> Capture "color" Text :> Capture "name" Text :> Post '[JSON] ()
-    :<|> "start" :> Post '[JSON] ()
-    :<|> "paint" :> ReqBody '[JSON] (Color, Country) :> PostNoContent '[JSON] ()
-
 type StaticContentRoutes =
   "_build" :> Raw
     :<|> Raw
 
-type Routes = APIRoutes :<|> WebSocket.Routes :<|> FullDuplexWebSocket.WebSocketApi :<|> StaticContentRoutes
+type Routes =
+  WebSocket.WebSocketApi
+    :<|> StaticContentRoutes
 
 {- Represents a pure computation that depends on the current state.
 
@@ -81,73 +74,13 @@ initializeLogger logFile = do
 app :: State -> Application
 app state =
   serve api $
-    gameApiServer (runAction state)
-      :<|> WebSocket.server state
-      :<|> FullDuplexWebSocket.server
+    WebSocket.server
       :<|> staticContentServer
 
 api :: Proxy Routes
 api = Proxy
 
-gameApiServer :: (forall a. Action a -> Handler a) -> Server APIRoutes
-gameApiServer runAction =
-  (\color name -> runAction (joinGame color name))
-    :<|> runAction startGame
-    :<|> runAction . paintCountry
-
 staticContentServer :: Server StaticContentRoutes
 staticContentServer =
   serveDirectoryWebApp "ui/_build"
     :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
-
-joinGame :: Text -> Text -> Action ()
-joinGame colorId name room =
-  case parseUrlPiece colorId :: Either Text Color of
-    Right color ->
-      Room.join color name room
-    Left err ->
-      ( Left (InvalidMove ("Could not parse player from url param")),
-        room
-      )
-
-startGame :: Action ()
-startGame room =
-  Room.startGame room
-
-paintCountry :: (Color, Country) -> Action ()
-paintCountry (player, country) =
-  Room.updateGame
-    ( \gameState ->
-        case Game.paintCountry player country gameState of
-          Left err ->
-            ( Left err,
-              gameState
-            )
-          Right gameState' ->
-            ( Right (),
-              gameState'
-            )
-    )
-
-handleError :: Error -> Handler a
-handleError gameError =
-  case gameError of
-    InvalidMove msg ->
-      throwError (err400 {errBody = encodeErrorMsg msg})
-    InternalError msg ->
-      throwError (err500 {errBody = encodeErrorMsg msg})
-
-encodeErrorMsg :: Text -> Data.ByteString.Lazy.ByteString
-encodeErrorMsg msg =
-  encodeUtf8 (Data.Text.Lazy.fromStrict msg)
-
-runAction :: State -> Action a -> Handler a
-runAction state action = do
-  response <-
-    State.runSTM $
-      State.updateRoom
-        (\room -> pure (action room))
-        state
-  case response of
-    Left err -> handleError err
-    Right value -> pure value

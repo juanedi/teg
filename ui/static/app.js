@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
   })
 
-  const fd = new WebSocket("ws://localhost:5000/stream/")
+  const fd = new WebSocket("ws://localhost:5000/ws/")
 
   fd.onopen = function (event) {
     console.log("FD: connection succeeded!")
@@ -67,4 +67,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
   window.setTimeout(function() {
     fd.send("Hello world!")
   }, 4000)
+
+  window.fd = fd
 })
