@@ -38,21 +38,36 @@ server state = clientChannel
 
 type Queue = TChan Channel.Event
 
+enqueue :: Channel.Event -> Queue -> IO ()
+enqueue event queue =
+  STM.atomically (TChan.writeTChan queue event)
+
+dequeue :: Queue -> IO Channel.Event
+dequeue queue =
+  STM.atomically $ do
+    isEmpty <- TChan.isEmptyTChan queue
+    if isEmpty then STM.retry else TChan.readTChan queue
+
 runChannel :: Room -> Connection -> IO ()
 runChannel room connection = do
   roomUpdates <- STM.atomically (Room.subscribe room)
   queue <- TChan.newTChanIO
   Async.mapConcurrently_
     id
-    [ (notificationsLoop connection queue roomUpdates),
-      (socketEventLoop connection queue),
-      (updateLoop connection queue Channel.init)
+    [ -- channel state machine, consumes events produced by the other threads
+      updateLoop connection queue Channel.init,
+      -- produces events based on messages received via the websocket
+      socketEventLoop connection queue,
+      -- produces events based room updates
+      do
+        enqueue (Channel.Update (Room.state room)) queue
+        notificationsLoop connection queue roomUpdates
     ]
 
 notificationsLoop :: Connection -> Queue -> TChan Room.State -> IO ()
 notificationsLoop connection queue roomUpdates = do
   roomState <- STM.atomically $ TChan.readTChan roomUpdates
-  STM.atomically $ TChan.writeTChan queue (Channel.Update roomState)
+  enqueue (Channel.Update roomState) queue
   notificationsLoop connection queue roomUpdates
 
 socketEventLoop :: Connection -> Queue -> IO ()
@@ -62,7 +77,7 @@ socketEventLoop connection queue = do
       socketExceptionHandler
       (Channel.Received <$> receiveData connection)
       (\errorEvent -> return errorEvent)
-  STM.atomically $ TChan.writeTChan queue event
+  enqueue event queue
   socketEventLoop connection queue
 
 socketExceptionHandler :: WebSockets.ConnectionException -> Maybe Channel.Event
@@ -77,9 +92,7 @@ socketExceptionHandler exception =
 
 updateLoop :: Connection -> Queue -> Channel.State -> IO ()
 updateLoop connection queue state = do
-  nextEvent <- STM.atomically $ do
-    isEmpty <- TChan.isEmptyTChan queue
-    if isEmpty then STM.retry else TChan.readTChan queue
+  nextEvent <- dequeue queue
   let (updatedState, effect) = Channel.update state nextEvent
   case effect of
     Channel.NoEffect ->
