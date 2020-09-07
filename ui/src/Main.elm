@@ -78,7 +78,6 @@ type Msg
     | ColorPicked Color
     | JoinGameClicked
     | StartGameClicked
-    | StartGameResponse (Result Http.Error ())
     | GameplayMsg Gameplay.Msg
 
 
@@ -269,10 +268,6 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
-
-        StartGameResponse result ->
-            -- TODO: handle error. websocket should take care of the happy path
-            ( model, Cmd.none )
 
         GameplayMsg gameplayMsg ->
             case model.state of
