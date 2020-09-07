@@ -45,7 +45,6 @@ library
                      , http-api-data
                      , process
                      , servant
-                     , servant-elm
                      , servant-server
                      , servant-websockets
                      , stm
