@@ -27,12 +27,10 @@ library
                      , Game.Room
                      , Game.TurnList
                      , Game.Room
-                     , Game2.Room
                      , Result
                      , Server.Serialization
                      , Server.State
                      , Server.WebSocket
-                     , Server.FullDuplexWebSocket
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , async

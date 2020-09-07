@@ -2,106 +2,108 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Server.WebSocket
-  ( Routes,
+  ( WebSocketApi,
     server,
   )
 where
 
 import Client.ConnectionStates (ConnectionStates)
 import qualified Client.Room
-import Conduit (ResourceT)
+import Control.Concurrent (threadDelay)
+import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TChan (readTChan)
-import Control.Concurrent.STM.TVar (readTVar)
-import Data.Conduit (ConduitT, bracketP)
-import Data.Conduit (yield)
-import Game (Color)
-import qualified Game.Room
-import Game.Room (ClientChannel)
+import Control.Concurrent.STM.TChan (TChan, dupTChan, writeTChan)
+import qualified Control.Concurrent.STM.TChan as TChan
+import Control.Concurrent.STM.TVar (newTVar, readTVar, writeTVar)
+import Control.Exception (catch, catchJust)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Foldable (forM_)
+import Data.Text (Text, pack)
+import Game (Color, Country)
+import Game.Room (Room)
+import qualified Game.Room as Room
+import qualified Network.WebSockets as WebSockets
+import Network.WebSockets.Connection (Connection, PendingConnection, acceptRequest, receiveData, sendTextData, withPingThread)
 import Servant
-import Servant.API.WebSocketConduit (WebSocketConduit)
-import Server.State (State)
-import qualified Server.State as State
+import Servant.API.WebSocket
 
-type UpdatesConduit =
-  ConduitT
-    -- type of input values. nothing going on here since we don't get updates
-    -- from clients on the websocket.
-    ()
-    -- the type of values we stream to the clients.
-    Client.Room.Room
-    -- the monad we are running on. allows for IO via MonadIO and
-    -- acquiring/releasing resources via ResourceT (which we use to track
-    -- connection states).
-    (ResourceT IO)
-    -- the resulting value of the computation. nothing relevant here since we
-    -- don't operate on the result.
-    ()
+type WebSocketApi = "ws" :> WebSocketPending
 
-type Routes =
-  "lobby" :> WebSocketConduit () ConnectionStates
-    :<|> "game_updates" :> Capture "player" Color :> WebSocketConduit () Client.Room.Room
-
-server :: State -> Server Routes
-server state =
-  lobby state
-    :<|> gameUpdates state
-
-lobby :: State -> ConduitT () ConnectionStates (ResourceT IO) ()
-lobby state = do
-  (room, chan) <-
-    State.runSTM $
+server :: Server WebSocketApi
+server = clientChannel
+  where
+    clientChannel :: MonadIO m => PendingConnection -> m ()
+    clientChannel pc =
       do
-        room <- (readTVar (State.roomVar state))
-        chan <- Game.Room.subscribe room
-        pure (room, chan)
-  lobbyLoop chan (Game.Room.state room)
+        c <- liftIO $ acceptRequest pc
+        liftIO
+          $ withPingThread c 10 (return ())
+          $ Async.concurrently
+            ( liftIO . forM_ [1 ..] $
+                \i ->
+                  sendTextData c (pack $ show (i :: Int)) >> threadDelay 1000000
+            )
+            ( liftIO . forM_ [1 ..] $
+                \i -> do
+                  m <- receiveData c :: IO Text
+                  sendTextData c m
+            )
+        return ()
 
-lobbyLoop :: STM.TChan Game.Room.State -> Game.Room.State -> ConduitT () ConnectionStates (ResourceT IO) ()
-lobbyLoop chan roomState =
-  let maybeLobbyUpdate = Game.Room.lobbyState roomState
-   in case maybeLobbyUpdate of
-        Nothing ->
-          return ()
-        Just connectionStates -> do
-          yield connectionStates
-          roomState' <- State.runSTM (readTChan chan)
-          lobbyLoop chan roomState'
+data ChannelState
+  = WaitingToJoin
+  | InsideRoom Color
 
-gameUpdates :: State -> Color -> UpdatesConduit
-gameUpdates state player =
-  bracketP
-    (playerConnected state player)
-    (playerDisconnected state player)
-    (startNotifications state player)
+-- data ClientCommand
+--   = JoinRoom Color Text
+--   | StartGame
+--   | PaintCountry Color Country
 
-playerConnected :: State -> Color -> IO ClientChannel
-playerConnected state player = do
-  maybeChannel <-
-    STM.atomically $
-      State.updateRoom
-        (Game.Room.playerConnected player)
-        state
-  case maybeChannel of
-    Nothing -> fail "Could not connect!"
-    Just channel -> do
-      putStrLn ("------------------ player connected: " ++ show player)
-      pure channel
+type ClientCommand = Text
 
-startNotifications :: State -> Color -> ClientChannel -> UpdatesConduit
-startNotifications state player playerChannel = do
-  -- we want to send an initial update right away without waiting for there to
-  -- be a change in the room
-  room <- State.runSTM (readTVar (State.roomVar state))
-  notificationLoop player playerChannel (Game.Room.state room)
+data DataForClient
+  = -- TODO: command responses would go here too
+    NewLobbyUpdate ConnectionStates
+  | NewRoomUpdate Client.Room.Room
 
-notificationLoop :: Color -> ClientChannel -> Game.Room.State -> UpdatesConduit
-notificationLoop player playerChannel roomState = do
-  yield (Game.Room.clientState player roomState)
-  roomState' <- State.runSTM (readTChan playerChannel)
-  notificationLoop player playerChannel roomState'
+data Event
+  = Received ClientCommand
+  | Update Room.State
+  | ConnectionClosed
 
-playerDisconnected :: State -> Color -> ClientChannel -> IO ()
-playerDisconnected state player playerChannel =
-  -- TODO: cleanup socket and pause game!
-  putStrLn ("------------------ player disconnected: " ++ show player)
+runChannel :: Room -> Connection -> IO ()
+runChannel room connection = do
+  state <- STM.atomically $ newTVar WaitingToJoin
+  roomUpdates <- STM.atomically (Room.subscribe room)
+  queue <- TChan.newTChanIO
+  Async.concurrently
+    (notificationsLoop queue roomUpdates connection)
+    (socketEventLoop queue connection)
+  -- TODO: loop over the queue processing events!
+  return ()
+
+notificationsLoop :: TChan Event -> TChan Room.State -> Connection -> IO ()
+notificationsLoop queue roomUpdates connection = do
+  roomState <- STM.atomically $ TChan.readTChan roomUpdates
+  STM.atomically $ TChan.writeTChan queue (Update roomState)
+  notificationsLoop queue roomUpdates connection
+
+socketEventLoop :: TChan Event -> Connection -> IO ()
+socketEventLoop queue connection = do
+  event <-
+    catchJust
+      socketExceptionHandler
+      (Received <$> receiveData connection)
+      (\errorEvent -> return errorEvent)
+  STM.atomically $ TChan.writeTChan queue event
+  socketEventLoop queue connection
+
+socketExceptionHandler :: WebSockets.ConnectionException -> Maybe Event
+socketExceptionHandler exception =
+  case exception of
+    WebSockets.CloseRequest _ _ ->
+      Just ConnectionClosed
+    WebSockets.ConnectionClosed ->
+      Just ConnectionClosed
+    _ ->
+      Nothing
