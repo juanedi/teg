@@ -29,8 +29,13 @@ run =
               makeElmModule
                 "Api"
                 [ DefineElm (Proxy :: Proxy Game.Country),
-                  DefineElm (Proxy :: Proxy Game.Color)
+                  DefineElm (Proxy :: Proxy Game.Color),
+                  DefineElm (Proxy :: Proxy Client.ConnectionStates.ConnectionStates),
+                  DefineElm (Proxy :: Proxy Client.Game.Game),
+                  DefineElm (Proxy :: Proxy Client.Game.Instructions),
+                  DefineElm (Proxy :: Proxy Client.Room.Room)
                 ]
+
         Data.Text.IO.writeFile (joinPath [outputDir, fileName]) (pack content)
         putStrLn "Formatting generated code using elm-format..."
         createProcess (proc "elm-format" [fileName, "--yes"]) {cwd = Just outputDir}

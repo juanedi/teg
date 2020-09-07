@@ -26,8 +26,14 @@ port portInfo : (Value -> msg) -> Sub msg
 
 
 type PortCommand
-    = InitLobbySocket
-    | InitGameSocket Color
+    = InitSocket
+    | Send SocketMsg
+
+
+type SocketMsg
+    = JoinGame Color String
+    | StartGame
+    | PaintCountry Country Color
 
 
 type PortInfo
@@ -65,8 +71,7 @@ type alias LobbyState =
 
 
 type Msg
-    = JoinResponse (Result Http.Error ())
-    | PortInfoReceived Decode.Value
+    = PortInfoReceived Decode.Value
     | NameChanged String
     | ColorHoveredIn Color
     | ColorHoveredOut Color
@@ -92,7 +97,7 @@ init { boardSvgPath } =
     ( { boardSvgPath = boardSvgPath
       , state = Loading
       }
-    , sendPortCommand (encodePortCommand InitLobbySocket)
+    , sendPortCommand (encodePortCommand InitSocket)
     )
 
 
@@ -120,42 +125,19 @@ decodePortInfo =
 encodePortCommand : PortCommand -> Value
 encodePortCommand cmd =
     case cmd of
-        InitLobbySocket ->
-            Encode.object
-                [ ( "tag", Encode.string "init_lobby_socket" ) ]
+        InitSocket ->
+            Encode.object [ ( "tag", Encode.string "init_socket" ) ]
 
-        InitGameSocket color ->
+        Send _ ->
             Encode.object
-                [ ( "tag", Encode.string "init_game_socket" )
-                , ( "data"
-                  , color
-                        |> Color.toUrlSegment
-                        |> Encode.string
-                  )
+                [ ( "tag", Encode.string "send" )
+                , ( "msg", Encode.null )
                 ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        JoinResponse result ->
-            case model.state of
-                Joining color ->
-                    case result of
-                        Ok _ ->
-                            ( { model | state = Loading }
-                            , InitGameSocket color
-                                |> encodePortCommand
-                                |> sendPortCommand
-                            )
-
-                        Err _ ->
-                            -- TODO: handle error
-                            ( model, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
-
         PortInfoReceived jsonValue ->
             case Decode.decodeValue decodePortInfo jsonValue of
                 Ok (LobbyStateUpdate connectionStates) ->
@@ -265,7 +247,9 @@ update msg model =
                     case validateLobbyInput lobbyState of
                         Just { name, selectedColor } ->
                             ( { model | state = Joining selectedColor }
-                            , Api.postJoinByColorByName (Color.toUrlSegment selectedColor) name JoinResponse
+                            , Send (JoinGame selectedColor name)
+                                |> encodePortCommand
+                                |> sendPortCommand
                             )
 
                         Nothing ->
@@ -278,7 +262,9 @@ update msg model =
             case model.state of
                 ReadyToStart connectionStates ->
                     ( { model | state = Starting connectionStates }
-                    , Api.postStart StartGameResponse
+                    , Send StartGame
+                        |> encodePortCommand
+                        |> sendPortCommand
                     )
 
                 _ ->
@@ -292,11 +278,21 @@ update msg model =
             case model.state of
                 Playing gameplayState ->
                     let
-                        ( updatedGamplayState, cmd ) =
+                        ( updatedGamplayState, effects ) =
                             Gameplay.update gameplayMsg gameplayState
                     in
                     ( { model | state = Playing updatedGamplayState }
-                    , Cmd.map GameplayMsg cmd
+                    , effects
+                        |> List.map
+                            (\effect ->
+                                case effect of
+                                    Gameplay.CountryPainted country ->
+                                        PaintCountry country gameplayState.game.identity
+                                            |> Send
+                                            |> encodePortCommand
+                                            |> sendPortCommand
+                            )
+                        |> Cmd.batch
                     )
 
                 _ ->

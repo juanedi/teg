@@ -1,5 +1,6 @@
 module Gameplay exposing
-    ( Msg
+    ( Effect(..)
+    , Msg
     , State
     , init
     , serverUpdate
@@ -20,7 +21,10 @@ type Msg
     = MouseEntered Country
     | MouseLeft Country
     | ClickedCountry Country
-    | PaintCountryResponse (Result Http.Error ())
+
+
+type Effect
+    = CountryPainted Country
 
 
 type alias State =
@@ -41,12 +45,12 @@ serverUpdate game state =
     { state | game = game }
 
 
-update : Msg -> State -> ( State, Cmd Msg )
+update : Msg -> State -> ( State, List Effect )
 update msg state =
     case msg of
         MouseEntered country ->
             ( { state | hoveredCountry = Just country }
-            , Cmd.none
+            , []
             )
 
         MouseLeft country ->
@@ -63,17 +67,11 @@ update msg state =
                             else
                                 Just c
               }
-            , Cmd.none
+            , []
             )
 
         ClickedCountry country ->
-            ( state
-            , Api.postPaint ( state.game.identity, country ) PaintCountryResponse
-            )
-
-        PaintCountryResponse result ->
-            -- TODO: handle error
-            ( state, Cmd.none )
+            ( state, [ CountryPainted country ] )
 
 
 view : String -> State -> Html Msg
