@@ -19,9 +19,9 @@ import Network.Wai.Handler.Warp
 import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
 import Result (Error (..), Result (..))
 import Servant
-import qualified Server.WebSocket as WebSocket
 import Server.State (State)
 import qualified Server.State as State
+import qualified Server.WebSocket as WebSocket
 import qualified Server.WebSocket as WebSocket
 import qualified System.Directory as Directory
 import System.Environment (lookupEnv)
@@ -74,7 +74,7 @@ initializeLogger logFile = do
 app :: State -> Application
 app state =
   serve api $
-    WebSocket.server
+    WebSocket.server state
       :<|> staticContentServer
 
 api :: Proxy Routes
