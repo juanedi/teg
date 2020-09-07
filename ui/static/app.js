@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
       // console.log("socket: got a message", newState)
       // app.ports.portInfo.send({ tag: "game_state_update", data: newState })
 
-      console.log("socket: got a message", event.data)
+      console.log("socket got a message: ", event.data)
     }
   }
 
