@@ -5,23 +5,13 @@
 
 module Server (Server.run) where
 
-import qualified Data.ByteString.Lazy
 import Data.Maybe (fromMaybe)
-import Data.Text (Text)
-import qualified Data.Text.Lazy
-import Data.Text.Lazy.Encoding (encodeUtf8)
-import qualified Game
-import Game (Color, Country)
-import Game.Room (Room)
-import qualified Game.Room as Room
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
-import Result (Error (..), Result (..))
 import Servant
 import Server.State (State)
 import qualified Server.State as State
-import qualified Server.WebSocket as WebSocket
 import qualified Server.WebSocket as WebSocket
 import qualified System.Directory as Directory
 import System.Environment (lookupEnv)
@@ -37,13 +27,6 @@ type StaticContentRoutes =
 type Routes =
   WebSocket.WebSocketApi
     :<|> StaticContentRoutes
-
-{- Represents a pure computation that depends on the current state.
-
-   It can return a modify state and signal an error, but doesn't allow to
-   perform IO.
--}
-type Action val = Room -> Result Room val
 
 run :: IO ()
 run = do
