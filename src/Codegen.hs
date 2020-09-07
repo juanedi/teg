@@ -4,6 +4,7 @@
 
 module Codegen (run) where
 
+import qualified Channel
 import qualified Client.ConnectionStates
 import qualified Client.Game
 import qualified Client.Room
@@ -30,6 +31,7 @@ run =
                 "Api"
                 [ DefineElm (Proxy :: Proxy Game.Country),
                   DefineElm (Proxy :: Proxy Game.Color),
+                  DefineElm (Proxy :: Proxy Channel.ClientCommand),
                   DefineElm (Proxy :: Proxy Client.ConnectionStates.ConnectionStates),
                   DefineElm (Proxy :: Proxy Client.Game.Game),
                   DefineElm (Proxy :: Proxy Client.Game.Instructions),

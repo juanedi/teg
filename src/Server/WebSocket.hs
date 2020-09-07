@@ -15,10 +15,13 @@ import qualified Control.Concurrent.STM.TChan as TChan
 import Control.Concurrent.STM.TVar (readTVar)
 import Control.Exception (catchJust)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Aeson (eitherDecode)
+import Data.Text (pack)
 import Game.Room (Room)
 import qualified Game.Room as Room
+import Network.WebSockets (DataMessage (..))
 import qualified Network.WebSockets as WebSockets
-import Network.WebSockets.Connection (Connection, PendingConnection, acceptRequest, receiveData, sendTextData, withPingThread)
+import Network.WebSockets.Connection (Connection, PendingConnection, acceptRequest, receiveDataMessage, sendTextData, withPingThread)
 import Servant
 import Servant.API.WebSocket
 import qualified Server.State
@@ -75,10 +78,22 @@ socketEventLoop connection queue = do
   event <-
     catchJust
       socketExceptionHandler
-      (Channel.Received <$> receiveData connection)
+      (fmap fromDataMessage (receiveDataMessage connection))
       (\errorEvent -> return errorEvent)
   enqueue event queue
   socketEventLoop connection queue
+
+fromDataMessage :: DataMessage -> Channel.Event
+fromDataMessage dataMessage =
+  case dataMessage of
+    Text bs _ ->
+      case eitherDecode bs of
+        Left err ->
+          Channel.ReceivedInvalidMessage (pack err)
+        Right command ->
+          Channel.Received command
+    Binary _ ->
+      Channel.ReceivedInvalidMessage "The server doesn't support binary messages"
 
 socketExceptionHandler :: WebSockets.ConnectionException -> Maybe Channel.Event
 socketExceptionHandler exception =

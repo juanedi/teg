@@ -27,13 +27,7 @@ port portInfo : (Value -> msg) -> Sub msg
 
 type PortCommand
     = InitSocket
-    | Send SocketMsg
-
-
-type SocketMsg
-    = JoinGame Color String
-    | StartGame
-    | PaintCountry Country Color
+    | Send Api.ClientCommand
 
 
 type PortInfo
@@ -246,7 +240,7 @@ update msg model =
                     case validateLobbyInput lobbyState of
                         Just { name, selectedColor } ->
                             ( { model | state = Joining selectedColor }
-                            , Send (JoinGame selectedColor name)
+                            , Send (Api.JoinRoom selectedColor name)
                                 |> encodePortCommand
                                 |> sendPortCommand
                             )
@@ -261,7 +255,7 @@ update msg model =
             case model.state of
                 ReadyToStart connectionStates ->
                     ( { model | state = Starting connectionStates }
-                    , Send StartGame
+                    , Send Api.StartGame
                         |> encodePortCommand
                         |> sendPortCommand
                     )
@@ -282,7 +276,7 @@ update msg model =
                             (\effect ->
                                 case effect of
                                     Gameplay.CountryPainted country ->
-                                        PaintCountry country gameplayState.game.identity
+                                        Api.PaintCountry gameplayState.game.identity country
                                             |> Send
                                             |> encodePortCommand
                                             |> sendPortCommand

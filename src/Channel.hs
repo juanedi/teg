@@ -1,7 +1,14 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Channel
   ( Channel.init,
     update,
     DataForClient,
+    ClientCommand,
     Event (..),
     Effect (..),
     State,
@@ -9,19 +16,21 @@ module Channel
 where
 
 import Data.Text (Text)
+import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import Game (Color, Country)
 import qualified Game.Room as Room
+import qualified Server.Serialization as Serialization
 
 data State
   = WaitingToJoin
   | InsideRoom Color
 
--- data ClientCommand
---   = JoinRoom Color Text
---   | StartGame
---   | PaintCountry Color Country
+data ClientCommand
+  = JoinRoom Color Text
+  | StartGame
+  | PaintCountry Color Country
 
-type ClientCommand = Text
+deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''ClientCommand
 
 -- data DataForClient
 --   = -- TODO: command responses would go here too
@@ -33,6 +42,7 @@ type DataForClient = Text
 data Event
   = Received ClientCommand
   | Update Room.State
+  | ReceivedInvalidMessage Text
   | ConnectionClosed
 
 data Effect
@@ -47,9 +57,15 @@ init = WaitingToJoin
 update :: State -> Event -> (State, Effect)
 update state event =
   case event of
-    Received cmd ->
-      (state, SendToClient cmd)
+    Received (JoinRoom color name) ->
+      (state, SendToClient "ACK join room")
+    Received StartGame ->
+      (state, SendToClient "ACK start game")
+    Received (PaintCountry color country) ->
+      (state, SendToClient "ACK paint country")
     Update _ ->
       (state, SendToClient "room update!")
+    ReceivedInvalidMessage err ->
+      (state, SendToClient "invalid message!")
     ConnectionClosed ->
       (state, HangUp)
