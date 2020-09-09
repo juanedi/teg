@@ -19,12 +19,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
 
     socket.onmessage = function (event) {
-      // TODO: send updates to Elm
-      // let newState = JSON.parse(event.data)
-      // console.log("socket: got a message", newState)
-      // app.ports.portInfo.send({ tag: "game_state_update", data: newState })
-
-      console.log("socket got a message: ", event.data)
+      const update = JSON.parse(event.data)
+      console.log("socket: got a message", update)
+      app.ports.portInfo.send(update)
     }
   }
 

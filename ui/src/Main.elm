@@ -30,11 +30,6 @@ type PortCommand
     | Send Api.ClientCommand
 
 
-type PortInfo
-    = LobbyStateUpdate Api.ConnectionStates
-    | GameStateUpdate Api.Room
-
-
 type alias Flags =
     { boardSvgPath : String
     }
@@ -94,27 +89,6 @@ init { boardSvgPath } =
     )
 
 
-decodePortInfo : Decode.Decoder PortInfo
-decodePortInfo =
-    Decode.field "tag" Decode.string
-        |> Decode.andThen
-            (\tag ->
-                case tag of
-                    "game_state_update" ->
-                        Decode.field
-                            "data"
-                            (Decode.map GameStateUpdate Api.jsonDecRoom)
-
-                    "lobby_state_update" ->
-                        Decode.field
-                            "data"
-                            (Decode.map LobbyStateUpdate Api.jsonDecConnectionStates)
-
-                    _ ->
-                        Decode.fail ("Could interpret port info with tag: " ++ tag)
-            )
-
-
 encodePortCommand : PortCommand -> Value
 encodePortCommand cmd =
     case cmd of
@@ -132,8 +106,8 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         PortInfoReceived jsonValue ->
-            case Decode.decodeValue decodePortInfo jsonValue of
-                Ok (LobbyStateUpdate connectionStates) ->
+            case Decode.decodeValue Api.jsonDecDataForClient jsonValue of
+                Ok (Api.LobbyUpdate (Api.Lobby connectionStates)) ->
                     case model.state of
                         Loading ->
                             ( { model
@@ -161,7 +135,7 @@ update msg model =
                         _ ->
                             ( model, Cmd.none )
 
-                Ok (GameStateUpdate room) ->
+                Ok (Api.RoomUpdate room) ->
                     case room of
                         Api.WaitingForPlayers connectionStates ->
                             ( { model | state = WaitingForPlayers connectionStates }
