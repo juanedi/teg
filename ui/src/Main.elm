@@ -95,10 +95,10 @@ encodePortCommand cmd =
         InitSocket ->
             Encode.object [ ( "tag", Encode.string "init_socket" ) ]
 
-        Send _ ->
+        Send socketMsg ->
             Encode.object
                 [ ( "tag", Encode.string "send" )
-                , ( "msg", Encode.null )
+                , ( "msg", Api.jsonEncClientCommand socketMsg )
                 ]
 
 
