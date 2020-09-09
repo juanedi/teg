@@ -12,13 +12,14 @@ module Game.Room
   )
 where
 
-import Client.ConnectionStates (ConnectionStates (..))
+import qualified Client.ConnectionStates as ConnectionStates
 import qualified Client.Room
 import Control.Concurrent.STM (STM)
 import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChan, writeTChan)
 import Data.Text (Text)
 import qualified Game
 import Game.Color (Color)
+import qualified Game.Color as Color
 import qualified Game.TurnList as TurnList
 import Result (Error (..), Result (..))
 
@@ -28,7 +29,7 @@ data Room = Room
   }
 
 data State
-  = WaitingForPlayers [Color] [(Color, Text)]
+  = WaitingForPlayers [(Color, Text)]
   | Started Game.State
   deriving (Eq)
 
@@ -39,33 +40,46 @@ init =
     pure
       Room
         { broadcastChannel = broadcastChannel,
-          state = WaitingForPlayers [] []
+          state = WaitingForPlayers []
         }
 
 subscribe :: Room -> STM (TChan State)
 subscribe room =
   dupTChan (broadcastChannel room)
 
+freeSlots :: [(Color, Text)] -> [Color]
+freeSlots connectedPlayers =
+  filter
+    (\color -> not (isSlotTaken color connectedPlayers))
+    Color.all
+
+isSlotTaken :: Color -> [(Color, Text)] -> Bool
+isSlotTaken color connectedPlayers =
+  case lookup color connectedPlayers of
+    Just _ ->
+      True
+    Nothing ->
+      False
+
 join :: Color -> Text -> State -> Either Error State
 join color name state =
   case state of
-    WaitingForPlayers freeSlots connectedPlayers ->
-      -- TODO!
-      if elem color freeSlots
-        then Right state
-        else Left (InvalidMove "That slot has already been taken")
+    WaitingForPlayers connectedPlayers ->
+      if isSlotTaken color connectedPlayers
+        then Left (InvalidMove "That slot has already been taken")
+        else Right (WaitingForPlayers ((color, name) : connectedPlayers))
     Started _ ->
       Left (InvalidMove "Trying to join a game that has already started")
 
 forClient :: State -> Either Client.Room.Lobby Client.Room.Room
 forClient state =
   case state of
-    WaitingForPlayers freeSlots connectedPlayers ->
+    WaitingForPlayers connectedPlayers ->
       Left
         $ Client.Room.Lobby
-        $ ConnectionStates
-          { freeSlots = freeSlots,
-            connectedPlayers = connectedPlayers
+        $ ConnectionStates.ConnectionStates
+          { ConnectionStates.freeSlots = freeSlots connectedPlayers,
+            ConnectionStates.connectedPlayers = connectedPlayers
           }
     Started _ ->
       -- TODO!
@@ -82,7 +96,7 @@ broadcastChanges room =
 updateGame :: (Game.State -> Result Game.State result) -> Room -> Result Room result
 updateGame fn room =
   case state room of
-    WaitingForPlayers _ _ ->
+    WaitingForPlayers _ ->
       ( Left (InvalidMove "Trying to make a move on a game that hasn't started yet"),
         room
       )
