@@ -7,13 +7,12 @@
 module Channel
   ( Channel.init,
     update,
-    DataForClient,
+    DataForClient (..),
     ClientCommand,
     State,
   )
 where
 
-import Client.ConnectionStates (ConnectionStates)
 import qualified Client.Room
 import Data.Text (Text)
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
@@ -33,8 +32,8 @@ data ClientCommand
 deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''ClientCommand
 
 data DataForClient
-  = NewLobbyUpdate ConnectionStates
-  | NewRoomUpdate Client.Room.Room
+  = LobbyUpdate Client.Room.Lobby
+  | RoomUpdate Client.Room.Room
 
 deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''DataForClient
 

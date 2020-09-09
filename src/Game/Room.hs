@@ -7,6 +7,7 @@ module Game.Room
     startGame,
     broadcastChanges,
     updateGame,
+    forClient,
     state,
   )
 where
@@ -18,7 +19,6 @@ import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChan, writeTC
 import Data.Text (Text)
 import qualified Game
 import Game.Color (Color)
-import qualified Game.Color as Color
 import qualified Game.TurnList as TurnList
 import Result (Error (..), Result (..))
 
@@ -50,20 +50,26 @@ join :: Color -> Text -> State -> Either Error State
 join color name state =
   case state of
     WaitingForPlayers freeSlots connectedPlayers ->
+      -- TODO!
       if elem color freeSlots
         then Right state
         else Left (InvalidMove "That slot has already been taken")
     Started _ ->
       Left (InvalidMove "Trying to join a game that has already started")
 
-forClient :: State -> ConnectionStates
+forClient :: State -> Either Client.Room.Lobby Client.Room.Room
 forClient state =
   case state of
     WaitingForPlayers freeSlots connectedPlayers ->
-      ConnectionStates
-        { freeSlots = freeSlots,
-          connectedPlayers = connectedPlayers
-        }
+      Left
+        $ Client.Room.Lobby
+        $ ConnectionStates
+          { freeSlots = freeSlots,
+            connectedPlayers = connectedPlayers
+          }
+    Started _ ->
+      -- TODO!
+      undefined
 
 startGame :: Room -> Result Room ()
 startGame room =
