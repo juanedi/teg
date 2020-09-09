@@ -9,7 +9,6 @@ where
 
 import qualified Channel
 import qualified Control.Concurrent.Async as Async
-import Control.Concurrent.STM (STM)
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (TChan)
 import qualified Control.Concurrent.STM.TChan as TChan
@@ -38,17 +37,6 @@ server state = clientChannel
         withPingThread connection 10 (return ()) $ do
           runChannel state connection
 
-type Queue = TChan Channel.ClientCommand
-
-enqueue :: Channel.ClientCommand -> Queue -> IO ()
-enqueue cmd queue =
-  STM.atomically (TChan.writeTChan queue cmd)
-
-dequeue :: Queue -> STM Channel.ClientCommand
-dequeue queue = do
-  isEmpty <- TChan.isEmptyTChan queue
-  if isEmpty then STM.retry else TChan.readTChan queue
-
 runChannel :: Server.State.State -> Connection -> IO ()
 runChannel state connection = do
   (room, roomUpdates, queue) <- STM.atomically $ do
@@ -60,10 +48,7 @@ runChannel state connection = do
   channelStateVar <- STM.atomically (newTVar initialState)
   Async.mapConcurrently_
     id
-    [ -- consumes client commannds from the queue and processes them
-      updateLoop state connection queue channelStateVar,
-      -- reads messages from the websocket and enqueues them
-      clientCommandsLoop connection queue,
+    [ clientCommandsLoop connection (Server.State.roomVar state) channelStateVar,
       -- pushes changes to the room state to the client
       do
         pushRoomUpdate connection (Room.state room) initialState
@@ -96,8 +81,10 @@ data ReadResult
   | InvalidMessage Text
   | Command Channel.ClientCommand
 
-clientCommandsLoop :: Connection -> Queue -> IO ()
-clientCommandsLoop connection queue = do
+-- TODO: move the connection into the channel state?
+
+clientCommandsLoop :: Connection -> TVar Room.Room -> TVar Channel.State -> IO ()
+clientCommandsLoop connection roomVar channelStateVar = do
   readResult <-
     catchJust
       socketExceptionHandler
@@ -108,10 +95,27 @@ clientCommandsLoop connection queue = do
       return ()
     InvalidMessage _ ->
       -- TODO: notify the client somehow?
-      clientCommandsLoop connection queue
+      clientCommandsLoop connection roomVar channelStateVar
     Command cmd -> do
-      enqueue cmd queue
-      clientCommandsLoop connection queue
+      processCommand roomVar channelStateVar cmd
+      clientCommandsLoop connection roomVar channelStateVar
+
+processCommand :: TVar Room.Room -> TVar Channel.State -> Channel.ClientCommand -> IO ()
+processCommand roomVar channelStateVar cmd =
+  STM.atomically $
+    do
+      room <- readTVar roomVar
+      channelState <- readTVar channelStateVar
+      let (newChannelState, newRoomState) =
+            Channel.update
+              (Room.state room)
+              channelState
+              cmd
+      let room' = room {Room.state = newRoomState}
+      writeTVar roomVar room'
+      writeTVar channelStateVar newChannelState
+      Room.broadcastChanges room'
+      return ()
 
 fromDataMessage :: DataMessage -> ReadResult
 fromDataMessage dataMessage =
@@ -136,22 +140,3 @@ socketExceptionHandler exception =
       -- TODO: not sure what other type of errors could come here. should we
       -- fail on more cases?
       Nothing
-
-updateLoop :: Server.State.State -> Connection -> Queue -> TVar Channel.State -> IO ()
-updateLoop serverState connection queue channelStateVar = do
-  STM.atomically $
-    do
-      channelState <- readTVar channelStateVar
-      nextCommand <- dequeue queue
-      room <- readTVar (Server.State.roomVar serverState)
-      let (newChannelState, newRoomState) =
-            Channel.update
-              (Room.state room)
-              channelState
-              nextCommand
-      let room' = room {Room.state = newRoomState}
-      writeTVar (Server.State.roomVar serverState) room'
-      writeTVar channelStateVar newChannelState
-      Room.broadcastChanges room'
-      return ()
-  updateLoop serverState connection queue channelStateVar
