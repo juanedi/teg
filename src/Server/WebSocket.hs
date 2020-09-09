@@ -22,7 +22,9 @@ import Control.Exception (catchJust)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (eitherDecode, encode)
 import Data.Text (Text, pack)
+import Debug.Trace
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
+import qualified Game
 import Game (Color, Country)
 import Game.Room (Room)
 import qualified Game.Room as Room
@@ -172,7 +174,11 @@ processCommand roomVar stateVar cmd =
                 Right roomState' ->
                   (state, roomState')
             PaintCountry color country ->
-              (state, roomState)
+              case Room.updateGame (Game.paintCountry color country) roomState of
+                Left _ ->
+                  (state, roomState)
+                Right roomState' ->
+                  (state, roomState')
       let room' = room {Room.state = newRoomState}
       writeTVar roomVar room'
       writeTVar stateVar newState

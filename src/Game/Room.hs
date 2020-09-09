@@ -23,7 +23,7 @@ import Game.Color (Color)
 import qualified Game.Color as Color
 import Game.TurnList (TurnList)
 import qualified Game.TurnList as TurnList
-import Result (Error (..), Result (..))
+import Result (Error (..))
 
 data Room = Room
   { broadcastChannel :: TChan State,
@@ -127,22 +127,14 @@ broadcastChanges :: Room -> STM ()
 broadcastChanges room =
   writeTChan (broadcastChannel room) (state room)
 
-updateGame :: (Game.State -> Result Game.State result) -> Room -> Result Room result
-updateGame fn room =
-  case state room of
+updateGame :: (Game.State -> Either Error Game.State) -> State -> Either Error State
+updateGame fn state =
+  case state of
     WaitingForPlayers _ ->
-      ( Left (InvalidMove "Trying to make a move on a game that hasn't started yet"),
-        room
-      )
+      Left (InvalidMove "Trying to make a move on a game that hasn't started yet")
     Started gameState ->
-      let (result, gameState') = fn gameState
-          state' = Started gameState'
-       in case result of
-            Left err ->
-              ( Left err,
-                room {state = state'}
-              )
-            Right val ->
-              ( Right val,
-                room {state = state'}
-              )
+      case fn gameState of
+        Left err ->
+          Left err
+        Right gameState' ->
+          Right (Started gameState')
