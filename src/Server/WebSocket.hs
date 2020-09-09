@@ -1,13 +1,18 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Server.WebSocket
   ( WebSocketApi,
+    ClientCommand,
+    DataForClient,
     server,
   )
 where
 
-import qualified Channel
+import qualified Client.Room
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (TChan)
@@ -17,28 +22,49 @@ import Control.Exception (catchJust)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (eitherDecode, encode)
 import Data.Text (Text, pack)
+import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
+import Game (Color, Country)
+import Game.Room (Room)
 import qualified Game.Room as Room
 import Network.WebSockets (DataMessage)
 import qualified Network.WebSockets as WebSockets
 import Network.WebSockets.Connection (Connection, PendingConnection, acceptRequest, receiveDataMessage, sendTextData, withPingThread)
 import Servant
 import Servant.API.WebSocket
+import Server.Serialization (tagToApiLabel)
 
 type WebSocketApi = "ws" :> WebSocketPending
 
 data Channel = Channel
   { -- reference to the room, shared accross all client channels.
-    roomVar :: TVar Room.Room,
+    roomVar :: TVar Room,
     -- reference to the state. when a notification comes we need to read the
     -- current state to build the notification for the client.
-    stateVar :: TVar Channel.State,
+    stateVar :: TVar State,
     -- the channel where updates to the room are published.
     roomUpdates :: TChan Room.State,
     -- connection to the client
     connection :: Connection
   }
 
-server :: TVar Room.Room -> Server WebSocketApi
+data State
+  = WaitingToJoin
+  | InsideRoom Color
+
+data ClientCommand
+  = JoinRoom Color Text
+  | StartGame
+  | PaintCountry Color Country
+
+deriveBoth defaultOptions {constructorTagModifier = tagToApiLabel} ''ClientCommand
+
+data DataForClient
+  = LobbyUpdate Client.Room.Lobby
+  | RoomUpdate Client.Room.Room
+
+deriveBoth defaultOptions {constructorTagModifier = tagToApiLabel} ''DataForClient
+
+server :: TVar Room -> Server WebSocketApi
 server roomVar = clientChannel
   where
     clientChannel :: MonadIO m => PendingConnection -> m ()
@@ -48,10 +74,10 @@ server roomVar = clientChannel
         withPingThread connection 10 (return ()) $ do
           initChannel roomVar connection
 
-initChannel :: TVar Room.Room -> Connection -> IO ()
+initChannel :: TVar Room -> Connection -> IO ()
 initChannel roomVar connection = do
+  let initialState = WaitingToJoin
   room <- STM.atomically (readTVar roomVar)
-  let initialState = Channel.init
   roomUpdates <- STM.atomically (Room.subscribe room)
   stateVar <- STM.atomically (newTVar initialState)
   let channel =
@@ -82,19 +108,31 @@ notificationsLoop channel = do
   pushRoomUpdate (connection channel) roomState state
   notificationsLoop channel
 
-pushRoomUpdate :: Connection -> Room.State -> Channel.State -> IO ()
+pushRoomUpdate :: Connection -> Room.State -> State -> IO ()
 pushRoomUpdate connection roomState state =
-  case Channel.roomNotification roomState state of
+  case roomUpdate roomState state of
     Nothing ->
       -- TODO: notify the client somehow?
       return ()
     Just dataForClient ->
       sendTextData connection (encode dataForClient)
 
+roomUpdate :: Room.State -> State -> Maybe DataForClient
+roomUpdate roomState channelState =
+  case channelState of
+    WaitingToJoin ->
+      case Room.forClientInLobby roomState of
+        Left error ->
+          Nothing
+        Right lobby ->
+          Just (LobbyUpdate lobby)
+    InsideRoom color ->
+      Just (RoomUpdate (Room.forClientInTheRoom color roomState))
+
 data ReadResult
   = ConnectionClosed
   | InvalidMessage Text
-  | Command Channel.ClientCommand
+  | Command ClientCommand
 
 clientCommandsLoop :: Channel -> IO ()
 clientCommandsLoop channel = do
@@ -113,17 +151,24 @@ clientCommandsLoop channel = do
       processCommand (roomVar channel) (stateVar channel) cmd
       clientCommandsLoop channel
 
-processCommand :: TVar Room.Room -> TVar Channel.State -> Channel.ClientCommand -> IO ()
+processCommand :: TVar Room -> TVar State -> ClientCommand -> IO ()
 processCommand roomVar stateVar cmd =
   STM.atomically $
     do
       room <- readTVar roomVar
       state <- readTVar stateVar
-      let (newState, newRoomState) =
-            Channel.update
-              (Room.state room)
-              state
-              cmd
+      let roomState = Room.state room
+      let (newState, newRoomState) = case cmd of
+            JoinRoom color name ->
+              case Room.join color name roomState of
+                Left _ ->
+                  (state, roomState)
+                Right roomState' ->
+                  (InsideRoom color, roomState')
+            StartGame ->
+              (state, roomState)
+            PaintCountry color country ->
+              (state, roomState)
       let room' = room {Room.state = newRoomState}
       writeTVar roomVar room'
       writeTVar stateVar newState

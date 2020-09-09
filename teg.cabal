@@ -18,8 +18,7 @@ library
   ghc-options:         -fwarn-unused-imports
   exposed-modules:     Codegen
                      , Server
-  other-modules:     Channel
-                     , Client.Game
+  other-modules:       Client.Game
                      , Client.Room
                      , Client.ConnectionStates
                      , Game
