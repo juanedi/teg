@@ -13,7 +13,7 @@ import Control.Concurrent.STM (STM)
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (TChan)
 import qualified Control.Concurrent.STM.TChan as TChan
-import Control.Concurrent.STM.TVar (readTVar)
+import Control.Concurrent.STM.TVar (readTVar, writeTVar)
 import Control.Exception (catchJust)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (eitherDecode, encode)
@@ -38,13 +38,13 @@ server state = clientChannel
         withPingThread connection 10 (return ()) $ do
           runChannel state connection
 
-type Queue = TChan Channel.Event
+type Queue = TChan Channel.ClientCommand
 
-enqueue :: Channel.Event -> Queue -> IO ()
-enqueue event queue =
-  STM.atomically (TChan.writeTChan queue event)
+enqueue :: Channel.ClientCommand -> Queue -> IO ()
+enqueue cmd queue =
+  STM.atomically (TChan.writeTChan queue cmd)
 
-dequeue :: Queue -> STM Channel.Event
+dequeue :: Queue -> STM Channel.ClientCommand
 dequeue queue = do
   isEmpty <- TChan.isEmptyTChan queue
   if isEmpty then STM.retry else TChan.readTChan queue
@@ -58,29 +58,35 @@ runChannel state connection = do
     return (room, roomUpdates, queue)
   Async.mapConcurrently_
     id
-    [ -- channel state machine, consumes events produced by the other threads
+    [ -- consumes client commannds from the queue and processes them
       updateLoop state connection queue Channel.init,
-      -- produces events based on messages received via the websocket
-      socketEventLoop connection queue,
-      -- produces events based room updates
+      -- reads messages from the websocket and enqueues them
+      clientCommandsLoop connection queue,
+      -- pushes changes to the room state to the client
       do
-        enqueue (Channel.Update (Room.state room)) queue
-        notificationsLoop connection queue roomUpdates
+        pushRoomUpdate connection (Room.state room)
+        notificationsLoop connection roomUpdates
     ]
 
-notificationsLoop :: Connection -> Queue -> TChan Room.State -> IO ()
-notificationsLoop connection queue roomUpdates = do
+notificationsLoop :: Connection -> TChan Room.State -> IO ()
+notificationsLoop connection roomUpdates = do
   roomState <- STM.atomically $ TChan.readTChan roomUpdates
-  enqueue (Channel.Update roomState) queue
-  notificationsLoop connection queue roomUpdates
+  pushRoomUpdate connection roomState
+  notificationsLoop connection roomUpdates
+
+pushRoomUpdate :: Connection -> Room.State -> IO ()
+pushRoomUpdate connection roomState =
+  -- TODO
+  let dataForClient = undefined :: Channel.DataForClient
+   in sendTextData connection (encode dataForClient)
 
 data ReadResult
   = ConnectionClosed
   | InvalidMessage Text
   | Command Channel.ClientCommand
 
-socketEventLoop :: Connection -> Queue -> IO ()
-socketEventLoop connection queue = do
+clientCommandsLoop :: Connection -> Queue -> IO ()
+clientCommandsLoop connection queue = do
   readResult <-
     catchJust
       socketExceptionHandler
@@ -91,10 +97,10 @@ socketEventLoop connection queue = do
       return ()
     InvalidMessage _ ->
       -- TODO: notify the client somehow?
-      socketEventLoop connection queue
+      clientCommandsLoop connection queue
     Command cmd -> do
-      enqueue (Channel.Received cmd) queue
-      socketEventLoop connection queue
+      enqueue cmd queue
+      clientCommandsLoop connection queue
 
 fromDataMessage :: DataMessage -> ReadResult
 fromDataMessage dataMessage =
@@ -122,20 +128,19 @@ socketExceptionHandler exception =
 
 updateLoop :: Server.State.State -> Connection -> Queue -> Channel.State -> IO ()
 updateLoop serverState connection queue state = do
-  (updatedState, effect) <-
+  updatedState <-
     STM.atomically
       ( do
-          nextEvent <- dequeue queue
-          Server.State.updateRoom
-            ( \roomState ->
-                let (updatedState, newRoomState, effect) = Channel.update roomState state nextEvent
-                 in return ((updatedState, effect), newRoomState)
-            )
-            serverState
+          nextCommand <- dequeue queue
+          room <- readTVar (Server.State.roomVar serverState)
+          let (newChannelState, newRoomState) =
+                Channel.update
+                  (Room.state room)
+                  state
+                  nextCommand
+          let room' = room {Room.state = newRoomState}
+          writeTVar (Server.State.roomVar serverState) room'
+          Room.broadcastChanges room'
+          return newChannelState
       )
-  case effect of
-    Channel.NoEffect ->
-      updateLoop serverState connection queue updatedState
-    Channel.SendToClient dataForClient -> do
-      sendTextData connection (encode dataForClient)
-      updateLoop serverState connection queue updatedState
+  updateLoop serverState connection queue updatedState

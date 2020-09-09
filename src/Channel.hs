@@ -9,8 +9,6 @@ module Channel
     update,
     DataForClient,
     ClientCommand,
-    Event (..),
-    Effect (..),
     State,
   )
 where
@@ -40,30 +38,19 @@ data DataForClient
 
 deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''DataForClient
 
-data Event
-  = Received ClientCommand
-  | Update Room.State
-
-data Effect
-  = NoEffect
-  | SendToClient DataForClient
-
 init :: State
 init = WaitingToJoin
 
-update :: Room.State -> State -> Event -> (State, Room.State, Effect)
-update roomState state event =
-  case event of
-    Received (JoinRoom color name) ->
+update :: Room.State -> State -> ClientCommand -> (State, Room.State)
+update roomState state cmd =
+  case cmd of
+    JoinRoom color name ->
       case Room.join color name roomState of
         Left _ ->
-          (state, roomState, NoEffect)
+          (state, roomState)
         Right roomState' ->
-          (state, roomState', NoEffect)
-    Received StartGame ->
-      (state, roomState, NoEffect)
-    Received (PaintCountry color country) ->
-      (state, roomState, NoEffect)
-    Update _ ->
-      -- TODO: build client notification and send it!
-      (state, roomState, NoEffect)
+          (state, roomState')
+    StartGame ->
+      (state, roomState)
+    PaintCountry color country ->
+      (state, roomState)

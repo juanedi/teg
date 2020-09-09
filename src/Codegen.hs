@@ -11,7 +11,6 @@ import qualified Client.Room
 import Data.Proxy
 import Data.Text (pack)
 import qualified Data.Text.IO
-import Elm.Derive
 import Elm.Module
 import qualified Game
 import System.Directory (createDirectoryIfMissing)
