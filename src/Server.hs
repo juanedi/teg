@@ -5,13 +5,15 @@
 
 module Server (Server.run) where
 
+import qualified Control.Concurrent.STM as STM
+import Control.Concurrent.STM.TVar (TVar, newTVar)
 import Data.Maybe (fromMaybe)
+import Game.Room (Room)
+import qualified Game.Room as Room
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
 import Servant
-import Server.State (State)
-import qualified Server.State as State
 import qualified Server.WebSocket as WebSocket
 import qualified System.Directory as Directory
 import System.Environment (lookupEnv)
@@ -34,13 +36,13 @@ run = do
   let port = fromMaybe 8080 (fmap read maybePort)
   logFile <- lookupEnv "REQUESTS_LOG"
   logger <- initializeLogger (fromMaybe "./requests.log" logFile)
-  state <- State.initIO
+  roomVar <- STM.atomically (Room.init >>= newTVar)
   let settings =
         setPort port
           $ setLogger logger
           $ defaultSettings
   putStrLn ("Starting the application at port " ++ show port)
-  runSettings settings (app state)
+  runSettings settings (app roomVar)
 
 initializeLogger :: String -> IO ApacheLogger
 initializeLogger logFile = do
@@ -54,10 +56,10 @@ initializeLogger logFile = do
             getTime
         )
 
-app :: State -> Application
-app state =
+app :: TVar Room -> Application
+app roomVar =
   serve api $
-    WebSocket.server (State.roomVar state)
+    WebSocket.server roomVar
       :<|> staticContentServer
 
 api :: Proxy Routes
