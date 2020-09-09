@@ -13,7 +13,7 @@ import Control.Concurrent.STM (STM)
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (TChan)
 import qualified Control.Concurrent.STM.TChan as TChan
-import Control.Concurrent.STM.TVar (readTVar, writeTVar)
+import Control.Concurrent.STM.TVar (TVar, newTVar, readTVar, writeTVar)
 import Control.Exception (catchJust)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (eitherDecode, encode)
@@ -56,33 +56,40 @@ runChannel state connection = do
     roomUpdates <- Room.subscribe room
     queue <- TChan.newTChan
     return (room, roomUpdates, queue)
+  let initialState = Channel.init
+  channelStateVar <- STM.atomically (newTVar initialState)
   Async.mapConcurrently_
     id
     [ -- consumes client commannds from the queue and processes them
-      updateLoop state connection queue Channel.init,
+      updateLoop state connection queue channelStateVar,
       -- reads messages from the websocket and enqueues them
       clientCommandsLoop connection queue,
       -- pushes changes to the room state to the client
       do
-        pushRoomUpdate connection (Room.state room)
-        notificationsLoop connection roomUpdates
+        pushRoomUpdate connection (Room.state room) initialState
+        notificationsLoop connection roomUpdates channelStateVar
     ]
 
-notificationsLoop :: Connection -> TChan Room.State -> IO ()
-notificationsLoop connection roomUpdates = do
-  roomState <- STM.atomically $ TChan.readTChan roomUpdates
-  pushRoomUpdate connection roomState
-  notificationsLoop connection roomUpdates
+notificationsLoop :: Connection -> TChan Room.State -> TVar Channel.State -> IO ()
+notificationsLoop connection roomUpdates channelStateVar = do
+  (roomState, channelState) <-
+    STM.atomically
+      ( do
+          roomState <- TChan.readTChan roomUpdates
+          channelState <- readTVar channelStateVar
+          return (roomState, channelState)
+      )
+  pushRoomUpdate connection roomState channelState
+  notificationsLoop connection roomUpdates channelStateVar
 
-pushRoomUpdate :: Connection -> Room.State -> IO ()
-pushRoomUpdate connection roomState =
-  let dataForClient =
-        case Room.forClient roomState of
-          Left lobby ->
-            Channel.LobbyUpdate lobby
-          Right room ->
-            Channel.RoomUpdate room
-   in sendTextData connection (encode dataForClient)
+pushRoomUpdate :: Connection -> Room.State -> Channel.State -> IO ()
+pushRoomUpdate connection roomState channelState =
+  case Channel.roomNotification roomState channelState of
+    Nothing ->
+      -- TODO: notify the client somehow?
+      return ()
+    Just dataForClient ->
+      sendTextData connection (encode dataForClient)
 
 data ReadResult
   = ConnectionClosed
@@ -130,21 +137,21 @@ socketExceptionHandler exception =
       -- fail on more cases?
       Nothing
 
-updateLoop :: Server.State.State -> Connection -> Queue -> Channel.State -> IO ()
-updateLoop serverState connection queue state = do
-  updatedState <-
-    STM.atomically
-      ( do
-          nextCommand <- dequeue queue
-          room <- readTVar (Server.State.roomVar serverState)
-          let (newChannelState, newRoomState) =
-                Channel.update
-                  (Room.state room)
-                  state
-                  nextCommand
-          let room' = room {Room.state = newRoomState}
-          writeTVar (Server.State.roomVar serverState) room'
-          Room.broadcastChanges room'
-          return newChannelState
-      )
-  updateLoop serverState connection queue updatedState
+updateLoop :: Server.State.State -> Connection -> Queue -> TVar Channel.State -> IO ()
+updateLoop serverState connection queue channelStateVar = do
+  STM.atomically $
+    do
+      channelState <- readTVar channelStateVar
+      nextCommand <- dequeue queue
+      room <- readTVar (Server.State.roomVar serverState)
+      let (newChannelState, newRoomState) =
+            Channel.update
+              (Room.state room)
+              channelState
+              nextCommand
+      let room' = room {Room.state = newRoomState}
+      writeTVar (Server.State.roomVar serverState) room'
+      writeTVar channelStateVar newChannelState
+      Room.broadcastChanges room'
+      return ()
+  updateLoop serverState connection queue channelStateVar

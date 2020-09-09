@@ -2,7 +2,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Client.Room (Room (..), Lobby (..)) where
+module Client.Room
+  ( Room (..),
+    Lobby (..),
+  )
+where
 
 import Client.ConnectionStates (ConnectionStates)
 import qualified Client.Game
