@@ -7,47 +7,38 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
   })
 
-  const sockets = {}
+  let socket = null
 
-  function initLobbySocket() {
-    console.log("lobby socket: initializing")
+  function initSocket() {
+    console.log("initializing game socket")
 
-    sockets.lobby = new WebSocket("ws://localhost:5000/lobby")
+    socket = new WebSocket(`ws://localhost:5000/ws/`)
 
-    sockets.lobby.onopen = function (event) {
-      console.log("lobby socket: connection succeeded!")
+    socket.onopen = function (event) {
+      console.log("socket: connection succeeded!")
     }
 
-    sockets.lobby.onmessage = function (event) {
-      let msg = JSON.parse(event.data)
-      console.log("lobby socket: got a message", msg)
-      app.ports.portInfo.send({ tag: "lobby_state_update", data: msg })
+    socket.onmessage = function (event) {
+      const update = JSON.parse(event.data)
+      app.ports.portInfo.send(update)
     }
   }
 
-  function initGameSocket(player) {
-    console.log("game socket: initializing for player", player)
-
-    sockets.gameUpdates = new WebSocket(`ws://localhost:5000/game_updates/${player}`)
-
-    sockets.gameUpdates.onopen = function (event) {
-      console.log("game socket: connection succeeded!")
-    }
-
-    sockets.gameUpdates.onmessage = function (event) {
-      let newState = JSON.parse(event.data)
-      console.log("game socket: got a message", newState)
-      app.ports.portInfo.send({ tag: "game_state_update", data: newState })
+  function sendMsg(msg) {
+    if (socket) {
+      socket.send(JSON.stringify(msg))
+    } else {
+      console.error("Tried to send a command to the server before the socket was initialized")
     }
   }
 
   app.ports.sendPortCommand.subscribe(function(cmd) {
     switch(cmd.tag) {
-    case "init_lobby_socket":
-      initLobbySocket()
+    case "init_socket":
+      initSocket()
       break
-    case "init_game_socket":
-      initGameSocket(cmd.data)
+    case "send":
+      sendMsg(cmd.msg)
       break
     default:
       console.error("Unrecognized command sent through port", cmd)

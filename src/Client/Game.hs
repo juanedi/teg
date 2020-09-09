@@ -15,8 +15,8 @@ data Game = Game
   }
 
 data Instructions
-  = Wait
-  | PaintCountry
+  = WaitForOtherPlayer
+  | PickCountryToPaint
 
 deriveBoth defaultOptions ''Game
 deriveBoth defaultOptions ''Instructions

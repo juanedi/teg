@@ -1,107 +1,210 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Server.WebSocket
-  ( Routes,
+  ( WebSocketApi,
+    ClientCommand,
+    DataForClient,
     server,
   )
 where
 
-import Client.ConnectionStates (ConnectionStates)
 import qualified Client.Room
-import Conduit (ResourceT)
+import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TChan (readTChan)
-import Control.Concurrent.STM.TVar (readTVar)
-import Data.Conduit (ConduitT, bracketP)
-import Data.Conduit (yield)
-import Game (Color)
-import qualified Game.Room
-import Game.Room (ClientChannel)
+import Control.Concurrent.STM.TChan (TChan)
+import qualified Control.Concurrent.STM.TChan as TChan
+import Control.Concurrent.STM.TVar (TVar, newTVar, readTVar, writeTVar)
+import Control.Exception (catchJust)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Aeson (eitherDecode, encode)
+import Data.Text (Text, pack)
+import Debug.Trace
+import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
+import qualified Game
+import Game (Color, Country)
+import Game.Room (Room)
+import qualified Game.Room as Room
+import Network.WebSockets (DataMessage)
+import qualified Network.WebSockets as WebSockets
+import Network.WebSockets.Connection (Connection, PendingConnection, acceptRequest, receiveDataMessage, sendTextData, withPingThread)
 import Servant
-import Servant.API.WebSocketConduit (WebSocketConduit)
-import Server.State (State)
-import qualified Server.State as State
+import Servant.API.WebSocket
+import Server.Serialization (tagToApiLabel)
 
-type UpdatesConduit =
-  ConduitT
-    -- type of input values. nothing going on here since we don't get updates
-    -- from clients on the websocket.
-    ()
-    -- the type of values we stream to the clients.
-    Client.Room.Room
-    -- the monad we are running on. allows for IO via MonadIO and
-    -- acquiring/releasing resources via ResourceT (which we use to track
-    -- connection states).
-    (ResourceT IO)
-    -- the resulting value of the computation. nothing relevant here since we
-    -- don't operate on the result.
-    ()
+type WebSocketApi = "ws" :> WebSocketPending
 
-type Routes =
-  "lobby" :> WebSocketConduit () ConnectionStates
-    :<|> "game_updates" :> Capture "player" Color :> WebSocketConduit () Client.Room.Room
+data Channel = Channel
+  { -- reference to the room, shared accross all client channels.
+    roomVar :: TVar Room,
+    -- reference to the state. when a notification comes we need to read the
+    -- current state to build the notification for the client.
+    stateVar :: TVar State,
+    -- the channel where updates to the room are published.
+    roomUpdates :: TChan Room.State,
+    -- connection to the client
+    connection :: Connection
+  }
 
-server :: State -> Server Routes
-server state =
-  lobby state
-    :<|> gameUpdates state
+data State
+  = WaitingToJoin
+  | InsideRoom Color
 
-lobby :: State -> ConduitT () ConnectionStates (ResourceT IO) ()
-lobby state = do
-  (room, chan) <-
-    State.runSTM $
+data ClientCommand
+  = JoinRoom Color Text
+  | StartGame
+  | PaintCountry Color Country
+
+deriveBoth defaultOptions {constructorTagModifier = tagToApiLabel} ''ClientCommand
+
+data DataForClient
+  = LobbyUpdate Client.Room.Lobby
+  | RoomUpdate Client.Room.Room
+
+deriveBoth defaultOptions {constructorTagModifier = tagToApiLabel} ''DataForClient
+
+server :: TVar Room -> Server WebSocketApi
+server roomVar = clientChannel
+  where
+    clientChannel :: MonadIO m => PendingConnection -> m ()
+    clientChannel pc =
+      liftIO $ do
+        connection <- acceptRequest pc
+        withPingThread connection 10 (return ()) $ do
+          initChannel roomVar connection
+
+initChannel :: TVar Room -> Connection -> IO ()
+initChannel roomVar connection = do
+  let initialState = WaitingToJoin
+  room <- STM.atomically (readTVar roomVar)
+  roomUpdates <- STM.atomically (Room.subscribe room)
+  stateVar <- STM.atomically (newTVar initialState)
+  let channel =
+        Channel
+          { roomVar = roomVar,
+            stateVar = stateVar,
+            roomUpdates = roomUpdates,
+            connection = connection
+          }
+  Async.mapConcurrently_
+    id
+    [ clientCommandsLoop channel,
+      -- pushes changes to the room state to the client
       do
-        room <- (readTVar (State.roomVar state))
-        chan <- Game.Room.subscribe room
-        pure (room, chan)
-  lobbyLoop chan (Game.Room.state room)
+        pushRoomUpdate connection (Room.state room) initialState
+        notificationsLoop channel
+    ]
 
-lobbyLoop :: STM.TChan Game.Room.State -> Game.Room.State -> ConduitT () ConnectionStates (ResourceT IO) ()
-lobbyLoop chan roomState =
-  let maybeLobbyUpdate = Game.Room.lobbyState roomState
-   in case maybeLobbyUpdate of
-        Nothing ->
-          return ()
-        Just connectionStates -> do
-          yield connectionStates
-          roomState' <- State.runSTM (readTChan chan)
-          lobbyLoop chan roomState'
+notificationsLoop :: Channel -> IO ()
+notificationsLoop channel = do
+  (roomState, state) <-
+    STM.atomically
+      ( do
+          roomState <- TChan.readTChan (roomUpdates channel)
+          state <- readTVar (stateVar channel)
+          return (roomState, state)
+      )
+  pushRoomUpdate (connection channel) roomState state
+  notificationsLoop channel
 
-gameUpdates :: State -> Color -> UpdatesConduit
-gameUpdates state player =
-  bracketP
-    (playerConnected state player)
-    (playerDisconnected state player)
-    (startNotifications state player)
+pushRoomUpdate :: Connection -> Room.State -> State -> IO ()
+pushRoomUpdate connection roomState state =
+  case roomUpdate roomState state of
+    Nothing ->
+      -- TODO: notify the client somehow?
+      return ()
+    Just dataForClient ->
+      sendTextData connection (encode dataForClient)
 
-playerConnected :: State -> Color -> IO ClientChannel
-playerConnected state player = do
-  maybeChannel <-
-    STM.atomically $
-      State.updateRoom
-        (Game.Room.playerConnected player)
-        state
-  case maybeChannel of
-    Nothing -> fail "Could not connect!"
-    Just channel -> do
-      putStrLn ("------------------ player connected: " ++ show player)
-      pure channel
+roomUpdate :: Room.State -> State -> Maybe DataForClient
+roomUpdate roomState channelState =
+  case channelState of
+    WaitingToJoin ->
+      case Room.forClientInLobby roomState of
+        Left error ->
+          Nothing
+        Right lobby ->
+          Just (LobbyUpdate lobby)
+    InsideRoom color ->
+      Just (RoomUpdate (Room.forClientInTheRoom color roomState))
 
-startNotifications :: State -> Color -> ClientChannel -> UpdatesConduit
-startNotifications state player playerChannel = do
-  -- we want to send an initial update right away without waiting for there to
-  -- be a change in the room
-  room <- State.runSTM (readTVar (State.roomVar state))
-  notificationLoop player playerChannel (Game.Room.state room)
+data ReadResult
+  = ConnectionClosed
+  | InvalidMessage Text
+  | Command ClientCommand
 
-notificationLoop :: Color -> ClientChannel -> Game.Room.State -> UpdatesConduit
-notificationLoop player playerChannel roomState = do
-  yield (Game.Room.clientState player roomState)
-  roomState' <- State.runSTM (readTChan playerChannel)
-  notificationLoop player playerChannel roomState'
+clientCommandsLoop :: Channel -> IO ()
+clientCommandsLoop channel = do
+  readResult <-
+    catchJust
+      socketExceptionHandler
+      (fmap fromDataMessage (receiveDataMessage (connection channel)))
+      (\errorEvent -> return errorEvent)
+  case readResult of
+    ConnectionClosed ->
+      return ()
+    InvalidMessage _ ->
+      -- TODO: notify the client somehow?
+      clientCommandsLoop channel
+    Command cmd -> do
+      processCommand (roomVar channel) (stateVar channel) cmd
+      clientCommandsLoop channel
 
-playerDisconnected :: State -> Color -> ClientChannel -> IO ()
-playerDisconnected state player playerChannel =
-  -- TODO: cleanup socket and pause game!
-  putStrLn ("------------------ player disconnected: " ++ show player)
+processCommand :: TVar Room -> TVar State -> ClientCommand -> IO ()
+processCommand roomVar stateVar cmd =
+  STM.atomically $
+    do
+      room <- readTVar roomVar
+      state <- readTVar stateVar
+      let roomState = Room.state room
+      let (newState, newRoomState) = case cmd of
+            JoinRoom color name ->
+              case Room.join color name roomState of
+                Left _ ->
+                  (state, roomState)
+                Right roomState' ->
+                  (InsideRoom color, roomState')
+            StartGame ->
+              case Room.startGame roomState of
+                Left _ ->
+                  (state, roomState)
+                Right roomState' ->
+                  (state, roomState')
+            PaintCountry color country ->
+              case Room.updateGame (Game.paintCountry color country) roomState of
+                Left _ ->
+                  (state, roomState)
+                Right roomState' ->
+                  (state, roomState')
+      let room' = room {Room.state = newRoomState}
+      writeTVar roomVar room'
+      writeTVar stateVar newState
+      Room.broadcastChanges room'
+      return ()
+
+fromDataMessage :: DataMessage -> ReadResult
+fromDataMessage dataMessage =
+  case dataMessage of
+    WebSockets.Text bs _ ->
+      case eitherDecode bs of
+        Left err ->
+          InvalidMessage (pack err)
+        Right command ->
+          Command command
+    WebSockets.Binary _ ->
+      InvalidMessage "The server doesn't support binary messages"
+
+socketExceptionHandler :: WebSockets.ConnectionException -> Maybe ReadResult
+socketExceptionHandler exception =
+  case exception of
+    WebSockets.CloseRequest _ _ ->
+      Just ConnectionClosed
+    WebSockets.ConnectionClosed ->
+      Just ConnectionClosed
+    _ ->
+      -- TODO: not sure what other type of errors could come here. should we
+      -- fail on more cases?
+      Nothing
