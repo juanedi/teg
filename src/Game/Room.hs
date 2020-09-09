@@ -21,6 +21,7 @@ import Data.Text (Text)
 import qualified Game
 import Game.Color (Color)
 import qualified Game.Color as Color
+import Game.TurnList (TurnList)
 import qualified Game.TurnList as TurnList
 import Result (Error (..), Result (..))
 
@@ -88,15 +89,27 @@ forClientInLobby state =
 forClientInTheRoom :: Color -> State -> Client.Room.Room
 forClientInTheRoom color state =
   case state of
-    -- TODO: check if the game is ready to start
     WaitingForPlayers connectedPlayers ->
-      Client.Room.WaitingForPlayers $
-        ConnectionStates.ConnectionStates
-          { ConnectionStates.freeSlots = freeSlots connectedPlayers,
-            ConnectionStates.connectedPlayers = connectedPlayers
-          }
+      let connectionStates =
+            ConnectionStates.ConnectionStates
+              { ConnectionStates.freeSlots = freeSlots connectedPlayers,
+                ConnectionStates.connectedPlayers = connectedPlayers
+              }
+       in case checkReady connectedPlayers of
+            Nothing ->
+              Client.Room.WaitingForPlayers connectionStates
+            Just _ ->
+              Client.Room.ReadyToStart connectionStates
     Started gameState ->
       Client.Room.Started (Game.playerState color gameState)
+
+checkReady :: [(Color, Text)] -> Maybe (TurnList (Color, Text))
+checkReady connectedPlayers =
+  case connectedPlayers of
+    first : second : rest ->
+      Just (TurnList.init first (second : rest))
+    _ ->
+      Nothing
 
 startGame :: Room -> Result Room ()
 startGame room =
