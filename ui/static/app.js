@@ -7,12 +7,12 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
   })
 
+  let socket = null
+
   function initSocket() {
     console.log("initializing game socket")
 
-    const socket = new WebSocket(`ws://localhost:5000/ws/`)
-    // TODO: don't expose this
-    window.socket = socket
+    socket = new WebSocket(`ws://localhost:5000/ws/`)
 
     socket.onopen = function (event) {
       console.log("socket: connection succeeded!")
@@ -23,6 +23,16 @@ document.addEventListener('DOMContentLoaded', (event) => {
       console.log("socket: got a message", update)
       app.ports.portInfo.send(update)
     }
+
+  }
+
+  function sendMsg(msg) {
+    if (socket) {
+      console.log("socket: sending message", msg)
+      socket.send(JSON.stringify(msg))
+    } else {
+      console.error("Tried to send a command to the server before the socket was initialized")
+    }
   }
 
   app.ports.sendPortCommand.subscribe(function(cmd) {
@@ -31,7 +41,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
       initSocket()
       break
     case "send":
-      // TODO: send message!
+      sendMsg(cmd.msg)
       break
     default:
       console.error("Unrecognized command sent through port", cmd)
