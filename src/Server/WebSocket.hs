@@ -9,17 +9,17 @@ where
 
 import qualified Channel
 import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.STM (STM)
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (TChan)
 import qualified Control.Concurrent.STM.TChan as TChan
 import Control.Concurrent.STM.TVar (readTVar)
 import Control.Exception (catchJust)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Aeson (eitherDecode)
-import Data.Text (pack)
-import Game.Room (Room)
+import Data.Aeson (eitherDecode, encode)
+import Data.Text (Text, pack)
 import qualified Game.Room as Room
-import Network.WebSockets (DataMessage (..))
+import Network.WebSockets (DataMessage)
 import qualified Network.WebSockets as WebSockets
 import Network.WebSockets.Connection (Connection, PendingConnection, acceptRequest, receiveDataMessage, sendTextData, withPingThread)
 import Servant
@@ -36,8 +36,7 @@ server state = clientChannel
       liftIO $ do
         connection <- acceptRequest pc
         withPingThread connection 10 (return ()) $ do
-          room <- STM.atomically (readTVar (Server.State.roomVar state))
-          runChannel room connection
+          runChannel state connection
 
 type Queue = TChan Channel.Event
 
@@ -45,20 +44,22 @@ enqueue :: Channel.Event -> Queue -> IO ()
 enqueue event queue =
   STM.atomically (TChan.writeTChan queue event)
 
-dequeue :: Queue -> IO Channel.Event
-dequeue queue =
-  STM.atomically $ do
-    isEmpty <- TChan.isEmptyTChan queue
-    if isEmpty then STM.retry else TChan.readTChan queue
+dequeue :: Queue -> STM Channel.Event
+dequeue queue = do
+  isEmpty <- TChan.isEmptyTChan queue
+  if isEmpty then STM.retry else TChan.readTChan queue
 
-runChannel :: Room -> Connection -> IO ()
-runChannel room connection = do
-  roomUpdates <- STM.atomically (Room.subscribe room)
-  queue <- TChan.newTChanIO
+runChannel :: Server.State.State -> Connection -> IO ()
+runChannel state connection = do
+  (room, roomUpdates, queue) <- STM.atomically $ do
+    room <- readTVar (Server.State.roomVar state)
+    roomUpdates <- Room.subscribe room
+    queue <- TChan.newTChan
+    return (room, roomUpdates, queue)
   Async.mapConcurrently_
     id
     [ -- channel state machine, consumes events produced by the other threads
-      updateLoop connection queue Channel.init,
+      updateLoop state connection queue Channel.init,
       -- produces events based on messages received via the websocket
       socketEventLoop connection queue,
       -- produces events based room updates
@@ -73,47 +74,68 @@ notificationsLoop connection queue roomUpdates = do
   enqueue (Channel.Update roomState) queue
   notificationsLoop connection queue roomUpdates
 
+data ReadResult
+  = ConnectionClosed
+  | InvalidMessage Text
+  | Command Channel.ClientCommand
+
 socketEventLoop :: Connection -> Queue -> IO ()
 socketEventLoop connection queue = do
-  event <-
+  readResult <-
     catchJust
       socketExceptionHandler
       (fmap fromDataMessage (receiveDataMessage connection))
       (\errorEvent -> return errorEvent)
-  enqueue event queue
-  socketEventLoop connection queue
+  case readResult of
+    ConnectionClosed ->
+      return ()
+    InvalidMessage _ ->
+      -- TODO: notify the client somehow?
+      socketEventLoop connection queue
+    Command cmd -> do
+      enqueue (Channel.Received cmd) queue
+      socketEventLoop connection queue
 
-fromDataMessage :: DataMessage -> Channel.Event
+fromDataMessage :: DataMessage -> ReadResult
 fromDataMessage dataMessage =
   case dataMessage of
-    Text bs _ ->
+    WebSockets.Text bs _ ->
       case eitherDecode bs of
         Left err ->
-          Channel.ReceivedInvalidMessage (pack err)
+          InvalidMessage (pack err)
         Right command ->
-          Channel.Received command
-    Binary _ ->
-      Channel.ReceivedInvalidMessage "The server doesn't support binary messages"
+          Command command
+    WebSockets.Binary _ ->
+      InvalidMessage "The server doesn't support binary messages"
 
-socketExceptionHandler :: WebSockets.ConnectionException -> Maybe Channel.Event
+socketExceptionHandler :: WebSockets.ConnectionException -> Maybe ReadResult
 socketExceptionHandler exception =
   case exception of
     WebSockets.CloseRequest _ _ ->
-      Just Channel.ConnectionClosed
+      Just ConnectionClosed
     WebSockets.ConnectionClosed ->
-      Just Channel.ConnectionClosed
+      Just ConnectionClosed
     _ ->
+      -- TODO: not sure what other type of errors could come here. should we
+      -- fail on more cases?
       Nothing
 
-updateLoop :: Connection -> Queue -> Channel.State -> IO ()
-updateLoop connection queue state = do
-  nextEvent <- dequeue queue
-  let (updatedState, effect) = Channel.update state nextEvent
+updateLoop :: Server.State.State -> Connection -> Queue -> Channel.State -> IO ()
+updateLoop serverState connection queue state = do
+  (updatedState, effect) <-
+    STM.atomically
+      ( do
+          nextEvent <- dequeue queue
+          Server.State.updateRoom
+            ( \roomState ->
+                let (updatedState, newRoomState, effect) = Channel.update roomState state nextEvent
+                 in return ((updatedState, effect), newRoomState)
+            )
+            serverState
+      )
   case effect of
     Channel.NoEffect ->
-      updateLoop connection queue updatedState
-    Channel.SendToClient text -> do
-      sendTextData connection text
-      updateLoop connection queue updatedState
-    Channel.HangUp ->
-      return ()
+      updateLoop serverState connection queue updatedState
+    Channel.SendToClient dataForClient -> do
+      sendTextData connection (encode dataForClient)
+      updateLoop serverState connection queue updatedState
