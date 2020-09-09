@@ -105,7 +105,7 @@ forClientInTheRoom color state =
 
 checkReady :: [(Color, Text)] -> Maybe (TurnList (Color, Text))
 checkReady connectedPlayers =
-  case connectedPlayers of
+  case reverse connectedPlayers of
     first : second : rest ->
       Just (TurnList.init first (second : rest))
     _ ->
