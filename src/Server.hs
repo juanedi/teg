@@ -57,7 +57,7 @@ initializeLogger logFile = do
 app :: State -> Application
 app state =
   serve api $
-    WebSocket.server state
+    WebSocket.server (State.roomVar state)
       :<|> staticContentServer
 
 api :: Proxy Routes
