@@ -30,6 +30,7 @@ data Room = Room
 data State
   = WaitingForPlayers [Color] [(Color, Text)]
   | Started Game.State
+  deriving (Eq)
 
 init :: STM Room
 init =
@@ -45,9 +46,24 @@ subscribe :: Room -> STM (TChan State)
 subscribe room =
   dupTChan (broadcastChannel room)
 
-join :: Color -> Text -> Room -> Result Room ()
-join color name room =
-  undefined
+join :: Color -> Text -> State -> Either Error State
+join color name state =
+  case state of
+    WaitingForPlayers freeSlots connectedPlayers ->
+      if elem color freeSlots
+        then Right state
+        else Left (InvalidMove "That slot has already been taken")
+    Started _ ->
+      Left (InvalidMove "Trying to join a game that has already started")
+
+forClient :: State -> ConnectionStates
+forClient state =
+  case state of
+    WaitingForPlayers freeSlots connectedPlayers ->
+      ConnectionStates
+        { freeSlots = freeSlots,
+          connectedPlayers = connectedPlayers
+        }
 
 startGame :: Room -> Result Room ()
 startGame room =

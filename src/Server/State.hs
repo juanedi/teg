@@ -24,12 +24,19 @@ init = do
   roomVar <- Room.init >>= newTVar
   pure (State roomVar)
 
-updateRoom :: (Room -> STM (val, Room)) -> State -> STM val
+updateRoom :: (Room.State -> STM (val, Room.State)) -> State -> STM val
 updateRoom fn (State roomVar) = do
   room <- readTVar roomVar
-  (val, room') <- fn room
+  let initialRoomState = Room.state room
+  (val, newRoomState) <- fn initialRoomState
+  let room' = room {Room.state = newRoomState}
   writeTVar roomVar room'
-  Room.broadcastChanges room'
+  -- TODO: the initial update is not being sent because there was no change make
+  -- it so that we don't rely on equality checks but also don't enter an
+  -- infinite loop when a notification is processed.
+  if initialRoomState /= newRoomState
+    then Room.broadcastChanges room'
+    else return ()
   pure val
 
 runSTM :: MonadIO m => STM a -> m a

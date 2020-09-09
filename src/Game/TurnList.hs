@@ -7,6 +7,7 @@ module Game.TurnList
 where
 
 data TurnList a = TurnList [a] a [a]
+  deriving (Eq)
 
 init :: a -> [a] -> TurnList a
 init head tail =

@@ -24,6 +24,7 @@ data State = State
   { players :: TurnList (Color, Name),
     paintedCountries :: Map Country Color
   }
+  deriving (Eq)
 
 init :: TurnList (Color, Name) -> State
 init players =

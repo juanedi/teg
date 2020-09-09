@@ -15,6 +15,8 @@ module Channel
   )
 where
 
+import Client.ConnectionStates (ConnectionStates)
+import qualified Client.Room
 import Data.Text (Text)
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import Game (Color, Country)
@@ -32,40 +34,36 @@ data ClientCommand
 
 deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''ClientCommand
 
--- data DataForClient
---   = -- TODO: command responses would go here too
---     NewLobbyUpdate ConnectionStates
---   | NewRoomUpdate Client.Room.Room
+data DataForClient
+  = NewLobbyUpdate ConnectionStates
+  | NewRoomUpdate Client.Room.Room
 
-type DataForClient = Text
+deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel} ''DataForClient
 
 data Event
   = Received ClientCommand
   | Update Room.State
-  | ReceivedInvalidMessage Text
-  | ConnectionClosed
 
 data Effect
   = NoEffect
   | SendToClient DataForClient
-  | HangUp
-  deriving (Show)
 
 init :: State
 init = WaitingToJoin
 
-update :: State -> Event -> (State, Effect)
-update state event =
+update :: Room.State -> State -> Event -> (State, Room.State, Effect)
+update roomState state event =
   case event of
     Received (JoinRoom color name) ->
-      (state, SendToClient "ACK join room")
+      case Room.join color name roomState of
+        Left _ ->
+          (state, roomState, NoEffect)
+        Right roomState' ->
+          (state, roomState', NoEffect)
     Received StartGame ->
-      (state, SendToClient "ACK start game")
+      (state, roomState, NoEffect)
     Received (PaintCountry color country) ->
-      (state, SendToClient "ACK paint country")
+      (state, roomState, NoEffect)
     Update _ ->
-      (state, SendToClient "room update!")
-    ReceivedInvalidMessage err ->
-      (state, SendToClient "invalid message!")
-    ConnectionClosed ->
-      (state, HangUp)
+      -- TODO: build client notification and send it!
+      (state, roomState, NoEffect)

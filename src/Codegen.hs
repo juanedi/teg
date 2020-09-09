@@ -32,6 +32,7 @@ run =
                 [ DefineElm (Proxy :: Proxy Game.Country),
                   DefineElm (Proxy :: Proxy Game.Color),
                   DefineElm (Proxy :: Proxy Channel.ClientCommand),
+                  DefineElm (Proxy :: Proxy Channel.DataForClient),
                   DefineElm (Proxy :: Proxy Client.ConnectionStates.ConnectionStates),
                   DefineElm (Proxy :: Proxy Client.Game.Game),
                   DefineElm (Proxy :: Proxy Client.Game.Instructions),
