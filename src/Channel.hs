@@ -61,7 +61,7 @@ update roomState state cmd =
         Left _ ->
           (state, roomState)
         Right roomState' ->
-          (state, roomState')
+          (InsideRoom color, roomState')
     StartGame ->
       (state, roomState)
     PaintCountry color country ->
