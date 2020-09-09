@@ -166,7 +166,11 @@ processCommand roomVar stateVar cmd =
                 Right roomState' ->
                   (InsideRoom color, roomState')
             StartGame ->
-              (state, roomState)
+              case Room.startGame roomState of
+                Left _ ->
+                  (state, roomState)
+                Right roomState' ->
+                  (state, roomState')
             PaintCountry color country ->
               (state, roomState)
       let room' = room {Room.state = newRoomState}
