@@ -27,9 +27,14 @@ import Servant.API.WebSocket
 type WebSocketApi = "ws" :> WebSocketPending
 
 data Channel = Channel
-  { roomVar :: TVar Room.Room,
+  { -- reference to the room, shared accross all client channels.
+    roomVar :: TVar Room.Room,
+    -- reference to the state. when a notification comes we need to read the
+    -- current state to build the notification for the client.
     stateVar :: TVar Channel.State,
+    -- the channel where updates to the room are published.
     roomUpdates :: TChan Room.State,
+    -- connection to the client
     connection :: Connection
   }
 
@@ -48,11 +53,11 @@ initChannel roomVar connection = do
   room <- STM.atomically (readTVar roomVar)
   let initialState = Channel.init
   roomUpdates <- STM.atomically (Room.subscribe room)
-  channelStateVar <- STM.atomically (newTVar initialState)
+  stateVar <- STM.atomically (newTVar initialState)
   let channel =
         Channel
           { roomVar = roomVar,
-            stateVar = channelStateVar,
+            stateVar = stateVar,
             roomUpdates = roomUpdates,
             connection = connection
           }
@@ -67,19 +72,19 @@ initChannel roomVar connection = do
 
 notificationsLoop :: Channel -> IO ()
 notificationsLoop channel = do
-  (roomState, channelState) <-
+  (roomState, state) <-
     STM.atomically
       ( do
           roomState <- TChan.readTChan (roomUpdates channel)
-          channelState <- readTVar (stateVar channel)
-          return (roomState, channelState)
+          state <- readTVar (stateVar channel)
+          return (roomState, state)
       )
-  pushRoomUpdate (connection channel) roomState channelState
+  pushRoomUpdate (connection channel) roomState state
   notificationsLoop channel
 
 pushRoomUpdate :: Connection -> Room.State -> Channel.State -> IO ()
-pushRoomUpdate connection roomState channelState =
-  case Channel.roomNotification roomState channelState of
+pushRoomUpdate connection roomState state =
+  case Channel.roomNotification roomState state of
     Nothing ->
       -- TODO: notify the client somehow?
       return ()
@@ -109,19 +114,19 @@ clientCommandsLoop channel = do
       clientCommandsLoop channel
 
 processCommand :: TVar Room.Room -> TVar Channel.State -> Channel.ClientCommand -> IO ()
-processCommand roomVar channelStateVar cmd =
+processCommand roomVar stateVar cmd =
   STM.atomically $
     do
       room <- readTVar roomVar
-      channelState <- readTVar channelStateVar
-      let (newChannelState, newRoomState) =
+      state <- readTVar stateVar
+      let (newState, newRoomState) =
             Channel.update
               (Room.state room)
-              channelState
+              state
               cmd
       let room' = room {Room.state = newRoomState}
       writeTVar roomVar room'
-      writeTVar channelStateVar newChannelState
+      writeTVar stateVar newState
       Room.broadcastChanges room'
       return ()
 
