@@ -76,8 +76,12 @@ notificationsLoop connection roomUpdates = do
 
 pushRoomUpdate :: Connection -> Room.State -> IO ()
 pushRoomUpdate connection roomState =
-  -- TODO
-  let dataForClient = undefined :: Channel.DataForClient
+  let dataForClient =
+        case Room.forClient roomState of
+          Left lobby ->
+            Channel.LobbyUpdate lobby
+          Right room ->
+            Channel.RoomUpdate room
    in sendTextData connection (encode dataForClient)
 
 data ReadResult

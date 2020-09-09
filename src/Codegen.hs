@@ -35,6 +35,7 @@ run =
                   DefineElm (Proxy :: Proxy Client.ConnectionStates.ConnectionStates),
                   DefineElm (Proxy :: Proxy Client.Game.Game),
                   DefineElm (Proxy :: Proxy Client.Game.Instructions),
+                  DefineElm (Proxy :: Proxy Client.Room.Lobby),
                   DefineElm (Proxy :: Proxy Client.Room.Room)
                 ]
 
