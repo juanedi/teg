@@ -7,7 +7,8 @@ module Game.Room
     startGame,
     broadcastChanges,
     updateGame,
-    forClient,
+    forClientInLobby,
+    forClientInTheRoom,
     state,
   )
 where
@@ -71,19 +72,31 @@ join color name state =
     Started _ ->
       Left (InvalidMove "Trying to join a game that has already started")
 
-forClient :: State -> Either Client.Room.Lobby Client.Room.Room
-forClient state =
+forClientInLobby :: State -> Either Error Client.Room.Lobby
+forClientInLobby state =
   case state of
     WaitingForPlayers connectedPlayers ->
-      Left
+      Right
         $ Client.Room.Lobby
         $ ConnectionStates.ConnectionStates
           { ConnectionStates.freeSlots = freeSlots connectedPlayers,
             ConnectionStates.connectedPlayers = connectedPlayers
           }
     Started _ ->
-      -- TODO!
-      undefined
+      Left (InvalidMove "The game has already started")
+
+forClientInTheRoom :: Color -> State -> Client.Room.Room
+forClientInTheRoom color state =
+  case state of
+    -- TODO: check if the game is ready to start
+    WaitingForPlayers connectedPlayers ->
+      Client.Room.WaitingForPlayers $
+        ConnectionStates.ConnectionStates
+          { ConnectionStates.freeSlots = freeSlots connectedPlayers,
+            ConnectionStates.connectedPlayers = connectedPlayers
+          }
+    Started gameState ->
+      Client.Room.Started (Game.playerState color gameState)
 
 startGame :: Room -> Result Room ()
 startGame room =

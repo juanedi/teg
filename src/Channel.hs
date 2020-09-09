@@ -6,6 +6,7 @@
 
 module Channel
   ( Channel.init,
+    roomNotification,
     update,
     DataForClient (..),
     ClientCommand,
@@ -39,6 +40,18 @@ deriveBoth defaultOptions {constructorTagModifier = Serialization.tagToApiLabel}
 
 init :: State
 init = WaitingToJoin
+
+roomNotification :: Room.State -> State -> Maybe DataForClient
+roomNotification roomState channelState =
+  case channelState of
+    WaitingToJoin ->
+      case Room.forClientInLobby roomState of
+        Left error ->
+          Nothing
+        Right lobby ->
+          Just (LobbyUpdate lobby)
+    InsideRoom color ->
+      Just (RoomUpdate (Room.forClientInTheRoom color roomState))
 
 update :: Room.State -> State -> ClientCommand -> (State, Room.State)
 update roomState state cmd =
