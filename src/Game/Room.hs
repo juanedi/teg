@@ -111,9 +111,17 @@ checkReady connectedPlayers =
     _ ->
       Nothing
 
-startGame :: Room -> Result Room ()
-startGame room =
-  undefined
+startGame :: State -> Either Error State
+startGame state =
+  case state of
+    WaitingForPlayers connectedPlayers ->
+      case checkReady connectedPlayers of
+        Nothing ->
+          Left (InvalidMove "Not enough players have joined the game yet")
+        Just turnList ->
+          Right (Started (Game.init turnList))
+    Started gameState ->
+      Left (InvalidMove "Trying to start a game that has already started")
 
 broadcastChanges :: Room -> STM ()
 broadcastChanges room =
