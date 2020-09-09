@@ -23,49 +23,59 @@ import qualified Network.WebSockets as WebSockets
 import Network.WebSockets.Connection (Connection, PendingConnection, acceptRequest, receiveDataMessage, sendTextData, withPingThread)
 import Servant
 import Servant.API.WebSocket
-import qualified Server.State
 
 type WebSocketApi = "ws" :> WebSocketPending
 
-server :: Server.State.State -> Server WebSocketApi
-server state = clientChannel
+data Channel = Channel
+  { roomVar :: TVar Room.Room,
+    stateVar :: TVar Channel.State,
+    roomUpdates :: TChan Room.State,
+    connection :: Connection
+  }
+
+server :: TVar Room.Room -> Server WebSocketApi
+server roomVar = clientChannel
   where
     clientChannel :: MonadIO m => PendingConnection -> m ()
     clientChannel pc =
       liftIO $ do
         connection <- acceptRequest pc
         withPingThread connection 10 (return ()) $ do
-          runChannel state connection
+          initChannel roomVar connection
 
-runChannel :: Server.State.State -> Connection -> IO ()
-runChannel state connection = do
-  (room, roomUpdates, queue) <- STM.atomically $ do
-    room <- readTVar (Server.State.roomVar state)
-    roomUpdates <- Room.subscribe room
-    queue <- TChan.newTChan
-    return (room, roomUpdates, queue)
+initChannel :: TVar Room.Room -> Connection -> IO ()
+initChannel roomVar connection = do
+  room <- STM.atomically (readTVar roomVar)
   let initialState = Channel.init
+  roomUpdates <- STM.atomically (Room.subscribe room)
   channelStateVar <- STM.atomically (newTVar initialState)
+  let channel =
+        Channel
+          { roomVar = roomVar,
+            stateVar = channelStateVar,
+            roomUpdates = roomUpdates,
+            connection = connection
+          }
   Async.mapConcurrently_
     id
-    [ clientCommandsLoop connection (Server.State.roomVar state) channelStateVar,
+    [ clientCommandsLoop channel,
       -- pushes changes to the room state to the client
       do
         pushRoomUpdate connection (Room.state room) initialState
-        notificationsLoop connection roomUpdates channelStateVar
+        notificationsLoop channel
     ]
 
-notificationsLoop :: Connection -> TChan Room.State -> TVar Channel.State -> IO ()
-notificationsLoop connection roomUpdates channelStateVar = do
+notificationsLoop :: Channel -> IO ()
+notificationsLoop channel = do
   (roomState, channelState) <-
     STM.atomically
       ( do
-          roomState <- TChan.readTChan roomUpdates
-          channelState <- readTVar channelStateVar
+          roomState <- TChan.readTChan (roomUpdates channel)
+          channelState <- readTVar (stateVar channel)
           return (roomState, channelState)
       )
-  pushRoomUpdate connection roomState channelState
-  notificationsLoop connection roomUpdates channelStateVar
+  pushRoomUpdate (connection channel) roomState channelState
+  notificationsLoop channel
 
 pushRoomUpdate :: Connection -> Room.State -> Channel.State -> IO ()
 pushRoomUpdate connection roomState channelState =
@@ -81,24 +91,22 @@ data ReadResult
   | InvalidMessage Text
   | Command Channel.ClientCommand
 
--- TODO: move the connection into the channel state?
-
-clientCommandsLoop :: Connection -> TVar Room.Room -> TVar Channel.State -> IO ()
-clientCommandsLoop connection roomVar channelStateVar = do
+clientCommandsLoop :: Channel -> IO ()
+clientCommandsLoop channel = do
   readResult <-
     catchJust
       socketExceptionHandler
-      (fmap fromDataMessage (receiveDataMessage connection))
+      (fmap fromDataMessage (receiveDataMessage (connection channel)))
       (\errorEvent -> return errorEvent)
   case readResult of
     ConnectionClosed ->
       return ()
     InvalidMessage _ ->
       -- TODO: notify the client somehow?
-      clientCommandsLoop connection roomVar channelStateVar
+      clientCommandsLoop channel
     Command cmd -> do
-      processCommand roomVar channelStateVar cmd
-      clientCommandsLoop connection roomVar channelStateVar
+      processCommand (roomVar channel) (stateVar channel) cmd
+      clientCommandsLoop channel
 
 processCommand :: TVar Room.Room -> TVar Channel.State -> Channel.ClientCommand -> IO ()
 processCommand roomVar channelStateVar cmd =
