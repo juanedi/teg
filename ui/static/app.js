@@ -20,15 +20,12 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     socket.onmessage = function (event) {
       const update = JSON.parse(event.data)
-      console.log("socket: got a message", update)
       app.ports.portInfo.send(update)
     }
-
   }
 
   function sendMsg(msg) {
     if (socket) {
-      console.log("socket: sending message", msg)
       socket.send(JSON.stringify(msg))
     } else {
       console.error("Tried to send a command to the server before the socket was initialized")
