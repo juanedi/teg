@@ -26,13 +26,8 @@ port portInfo : (Value -> msg) -> Sub msg
 
 
 type PortCommand
-    = InitLobbySocket
-    | InitGameSocket Color
-
-
-type PortInfo
-    = LobbyStateUpdate Api.ConnectionStates
-    | GameStateUpdate Api.Room
+    = InitSocket
+    | Send Api.ClientCommand
 
 
 type alias Flags =
@@ -65,15 +60,13 @@ type alias LobbyState =
 
 
 type Msg
-    = JoinResponse (Result Http.Error ())
-    | PortInfoReceived Decode.Value
+    = PortInfoReceived Decode.Value
     | NameChanged String
     | ColorHoveredIn Color
     | ColorHoveredOut Color
     | ColorPicked Color
     | JoinGameClicked
     | StartGameClicked
-    | StartGameResponse (Result Http.Error ())
     | GameplayMsg Gameplay.Msg
 
 
@@ -92,73 +85,29 @@ init { boardSvgPath } =
     ( { boardSvgPath = boardSvgPath
       , state = Loading
       }
-    , sendPortCommand (encodePortCommand InitLobbySocket)
+    , sendPortCommand (encodePortCommand InitSocket)
     )
-
-
-decodePortInfo : Decode.Decoder PortInfo
-decodePortInfo =
-    Decode.field "tag" Decode.string
-        |> Decode.andThen
-            (\tag ->
-                case tag of
-                    "game_state_update" ->
-                        Decode.field
-                            "data"
-                            (Decode.map GameStateUpdate Api.jsonDecRoom)
-
-                    "lobby_state_update" ->
-                        Decode.field
-                            "data"
-                            (Decode.map LobbyStateUpdate Api.jsonDecConnectionStates)
-
-                    _ ->
-                        Decode.fail ("Could interpret port info with tag: " ++ tag)
-            )
 
 
 encodePortCommand : PortCommand -> Value
 encodePortCommand cmd =
     case cmd of
-        InitLobbySocket ->
-            Encode.object
-                [ ( "tag", Encode.string "init_lobby_socket" ) ]
+        InitSocket ->
+            Encode.object [ ( "tag", Encode.string "init_socket" ) ]
 
-        InitGameSocket color ->
+        Send socketMsg ->
             Encode.object
-                [ ( "tag", Encode.string "init_game_socket" )
-                , ( "data"
-                  , color
-                        |> Color.toUrlSegment
-                        |> Encode.string
-                  )
+                [ ( "tag", Encode.string "send" )
+                , ( "msg", Api.jsonEncClientCommand socketMsg )
                 ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        JoinResponse result ->
-            case model.state of
-                Joining color ->
-                    case result of
-                        Ok _ ->
-                            ( { model | state = Loading }
-                            , InitGameSocket color
-                                |> encodePortCommand
-                                |> sendPortCommand
-                            )
-
-                        Err _ ->
-                            -- TODO: handle error
-                            ( model, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
-
         PortInfoReceived jsonValue ->
-            case Decode.decodeValue decodePortInfo jsonValue of
-                Ok (LobbyStateUpdate connectionStates) ->
+            case Decode.decodeValue Api.jsonDecDataForClient jsonValue of
+                Ok (Api.LobbyUpdate (Api.Lobby connectionStates)) ->
                     case model.state of
                         Loading ->
                             ( { model
@@ -186,7 +135,7 @@ update msg model =
                         _ ->
                             ( model, Cmd.none )
 
-                Ok (GameStateUpdate room) ->
+                Ok (Api.RoomUpdate room) ->
                     case room of
                         Api.WaitingForPlayers connectionStates ->
                             ( { model | state = WaitingForPlayers connectionStates }
@@ -265,7 +214,9 @@ update msg model =
                     case validateLobbyInput lobbyState of
                         Just { name, selectedColor } ->
                             ( { model | state = Joining selectedColor }
-                            , Api.postJoinByColorByName (Color.toUrlSegment selectedColor) name JoinResponse
+                            , Send (Api.JoinRoom selectedColor name)
+                                |> encodePortCommand
+                                |> sendPortCommand
                             )
 
                         Nothing ->
@@ -278,25 +229,33 @@ update msg model =
             case model.state of
                 ReadyToStart connectionStates ->
                     ( { model | state = Starting connectionStates }
-                    , Api.postStart StartGameResponse
+                    , Send Api.StartGame
+                        |> encodePortCommand
+                        |> sendPortCommand
                     )
 
                 _ ->
                     ( model, Cmd.none )
 
-        StartGameResponse result ->
-            -- TODO: handle error. websocket should take care of the happy path
-            ( model, Cmd.none )
-
         GameplayMsg gameplayMsg ->
             case model.state of
                 Playing gameplayState ->
                     let
-                        ( updatedGamplayState, cmd ) =
+                        ( updatedGamplayState, effects ) =
                             Gameplay.update gameplayMsg gameplayState
                     in
                     ( { model | state = Playing updatedGamplayState }
-                    , Cmd.map GameplayMsg cmd
+                    , effects
+                        |> List.map
+                            (\effect ->
+                                case effect of
+                                    Gameplay.CountryPainted country ->
+                                        Api.PaintCountry gameplayState.game.identity country
+                                            |> Send
+                                            |> encodePortCommand
+                                            |> sendPortCommand
+                            )
+                        |> Cmd.batch
                     )
 
                 _ ->
@@ -473,6 +432,7 @@ viewLobbyModal state =
 
 viewColorPicker : String -> LobbyState -> Html Msg
 viewColorPicker id state =
+    -- TODO: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/ARIA_Techniques/Using_the_radio_role
     let
         viewColorOption slot =
             button

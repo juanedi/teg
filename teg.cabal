@@ -26,12 +26,13 @@ library
                      , Game.Color
                      , Game.Room
                      , Game.TurnList
+                     , Game.Room
                      , Result
                      , Server.Serialization
-                     , Server.State
                      , Server.WebSocket
   build-depends:       base >= 4.7 && < 5
                      , aeson
+                     , async
                      , bytestring
                      , casing
                      , conduit
@@ -43,7 +44,6 @@ library
                      , http-api-data
                      , process
                      , servant
-                     , servant-elm
                      , servant-server
                      , servant-websockets
                      , stm
@@ -52,6 +52,7 @@ library
                      , wai-app-static
                      , wai-logger
                      , warp
+                     , websockets
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings
 

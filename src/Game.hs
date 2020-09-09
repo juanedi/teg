@@ -24,6 +24,7 @@ data State = State
   { players :: TurnList (Color, Name),
     paintedCountries :: Map Country Color
   }
+  deriving (Eq)
 
 init :: TurnList (Color, Name) -> State
 init players =
@@ -40,8 +41,8 @@ playerState color state =
       Client.Game.paintedCountries = Map.toList (paintedCountries state),
       Client.Game.instructions =
         if fst (TurnList.current (players state)) == color
-          then Client.Game.PaintCountry
-          else Client.Game.Wait
+          then Client.Game.PickCountryToPaint
+          else Client.Game.WaitForOtherPlayer
     }
 
 paintCountry :: Color -> Country -> State -> Either Error State
