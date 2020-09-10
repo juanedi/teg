@@ -10,7 +10,9 @@ where
 
 import Client.ConnectionStates (ConnectionStates)
 import qualified Client.Game
+import Data.Text (Text)
 import Elm.Derive (defaultOptions, deriveBoth)
+import Game.Color (Color)
 
 data Lobby
   = Lobby ConnectionStates
@@ -21,5 +23,6 @@ data Room
   = WaitingForPlayers ConnectionStates
   | ReadyToStart ConnectionStates
   | Started Client.Game.Game
+  | Paused [(Color, Text)]
 
 deriveBoth defaultOptions ''Room

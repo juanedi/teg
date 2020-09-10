@@ -49,6 +49,7 @@ type State
     | ReadyToStart Api.ConnectionStates
     | Starting Api.ConnectionStates
     | Playing Gameplay.State
+    | Paused (List ( Color, String ))
 
 
 type alias LobbyState =
@@ -157,6 +158,11 @@ update msg model =
                                         _ ->
                                             Playing (Gameplay.init game)
                               }
+                            , Cmd.none
+                            )
+
+                        Api.Paused missingPlayers ->
+                            ( { model | state = Paused missingPlayers }
                             , Cmd.none
                             )
 
@@ -334,6 +340,11 @@ view model =
                     |> Gameplay.view model.boardSvgPath
                     |> Styled.fromUnstyled
                     |> Styled.map GameplayMsg
+                ]
+
+            Paused missingPlayers ->
+                [ staticBoard model.boardSvgPath
+                , viewPausedModal missingPlayers
                 ]
 
 
@@ -519,6 +530,13 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
             , onClick = Just StartGameClicked
             , css = [ Css.marginTop (px 25) ]
             }
+        ]
+
+
+viewPausedModal : List ( Color, String ) -> Html Msg
+viewPausedModal missingPlayers =
+    viewModal
+        [ text "GAME IS PAUSED!"
         ]
 
 
