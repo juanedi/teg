@@ -4,6 +4,7 @@ module Game.Room
     Game.Room.init,
     subscribe,
     join,
+    disconnect,
     startGame,
     broadcastChanges,
     updateGame,
@@ -33,6 +34,7 @@ data Room = Room
 data State
   = WaitingForPlayers [(Color, Text)]
   | Started Game.State
+  | Paused [(Color, Text)] Game.State
   deriving (Eq)
 
 init :: STM Room
@@ -72,6 +74,28 @@ join color name state =
         else Right (WaitingForPlayers ((color, name) : connectedPlayers))
     Started _ ->
       Left (InvalidMove "Trying to join a game that has already started")
+    Paused missingPlayers gameState ->
+      case lookup color missingPlayers of
+        Nothing ->
+          Left (InvalidMove "The slot is not currently available in this game")
+        Just _ ->
+          case filter (\(c, _) -> c /= color) missingPlayers of
+            [] ->
+              Right (Started gameState)
+            missingPlayers' ->
+              Right (Paused missingPlayers' gameState)
+
+disconnect :: Color -> State -> State
+disconnect color state =
+  case state of
+    WaitingForPlayers connectedPlayers ->
+      WaitingForPlayers (filter (\(c, _) -> c /= color) connectedPlayers)
+    Started gameState ->
+      -- TODO: get name of the player for this color
+      Paused [(color, "TODO")] gameState
+    Paused missingPlayers gameState ->
+      -- TODO: get name of the player for this color
+      Paused ((color, "TODO") : missingPlayers) gameState
 
 forClientInLobby :: State -> Either Error Client.Room.Lobby
 forClientInLobby state =
@@ -84,6 +108,8 @@ forClientInLobby state =
             ConnectionStates.connectedPlayers = connectedPlayers
           }
     Started _ ->
+      Left (InvalidMove "The game has already started")
+    Paused _ _ ->
       Left (InvalidMove "The game has already started")
 
 forClientInTheRoom :: Color -> State -> Client.Room.Room
@@ -102,6 +128,8 @@ forClientInTheRoom color state =
               Client.Room.ReadyToStart connectionStates
     Started gameState ->
       Client.Room.Started (Game.playerState color gameState)
+    Paused missingPlayers _ ->
+      Client.Room.Paused missingPlayers
 
 checkReady :: [(Color, Text)] -> Maybe (TurnList (Color, Text))
 checkReady connectedPlayers =
@@ -120,7 +148,9 @@ startGame state =
           Left (InvalidMove "Not enough players have joined the game yet")
         Just turnList ->
           Right (Started (Game.init turnList))
-    Started gameState ->
+    Started _ ->
+      Left (InvalidMove "Trying to start a game that has already started")
+    Paused _ _ ->
       Left (InvalidMove "Trying to start a game that has already started")
 
 broadcastChanges :: Room -> STM ()
@@ -138,3 +168,5 @@ updateGame fn state =
           Left err
         Right gameState' ->
           Right (Started gameState')
+    Paused _ _ ->
+      Left (InvalidMove "Trying to make a move on a paused game")
