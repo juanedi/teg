@@ -13,7 +13,7 @@ module Server.WebSocket
 where
 
 import qualified Client.Room
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async as Async (async, waitEitherCancel)
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (TChan)
 import qualified Control.Concurrent.STM.TChan as TChan
@@ -22,7 +22,6 @@ import Control.Exception (catchJust)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (eitherDecode, encode)
 import Data.Text (Text, pack)
-import Debug.Trace
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import qualified Game
 import Game (Color, Country)
@@ -89,14 +88,15 @@ initChannel roomVar connection = do
             roomUpdates = roomUpdates,
             connection = connection
           }
-  Async.mapConcurrently_
-    id
-    [ clientCommandsLoop channel,
-      -- pushes changes to the room state to the client
-      do
-        pushRoomUpdate connection (Room.state room) initialState
-        notificationsLoop channel
-    ]
+  clientCommands <- async (clientCommandsLoop channel)
+  notifications <- async $ do
+    pushRoomUpdate connection (Room.state room) initialState
+    notificationsLoop channel
+  _ <-
+    waitEitherCancel
+      clientCommands
+      notifications
+  return ()
 
 notificationsLoop :: Channel -> IO ()
 notificationsLoop channel = do
@@ -124,7 +124,7 @@ roomUpdate roomState channelState =
   case channelState of
     WaitingToJoin ->
       case Room.forClientInLobby roomState of
-        Left error ->
+        Left _ ->
           Nothing
         Right lobby ->
           Just (LobbyUpdate lobby)
