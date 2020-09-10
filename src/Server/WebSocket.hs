@@ -97,23 +97,7 @@ initChannel roomVar connection = do
     waitEitherCancel
       clientCommands
       notifications
-  STM.atomically
-    ( do
-        finalState <- readTVar stateVar
-        case finalState of
-          WaitingToJoin ->
-            return ()
-          InsideRoom color -> do
-            updateRoom (return . (Room.disconnect color)) roomVar
-    )
-
-updateRoom :: (Room.State -> STM Room.State) -> TVar Room -> STM ()
-updateRoom fn roomVar = do
-  room <- readTVar roomVar
-  newRoomState <- fn (Room.state room)
-  let room' = room {Room.state = newRoomState}
-  writeTVar roomVar room'
-  Room.broadcastChanges room'
+  return ()
 
 notificationsLoop :: Channel -> IO ()
 notificationsLoop channel = do
@@ -162,21 +146,40 @@ clientCommandsLoop channel = do
       (\errorEvent -> return errorEvent)
   case readResult of
     ConnectionClosed ->
-      return ()
+      STM.atomically
+        ( do
+            finalState <- readTVar (stateVar channel)
+            case finalState of
+              WaitingToJoin ->
+                return ()
+              InsideRoom color -> do
+                updateRoom
+                  (return . (Room.disconnect color))
+                  (roomVar channel)
+        )
     InvalidMessage _ ->
       -- TODO: notify the client somehow?
       clientCommandsLoop channel
     Command cmd -> do
-      STM.atomically $
-        updateRoom
-          ( \roomState -> do
-              state <- readTVar (stateVar channel)
-              let (newState, newRoomState) = processCommand roomState state cmd
-              writeTVar (stateVar channel) newState
-              return newRoomState
-          )
-          (roomVar channel)
+      STM.atomically
+        ( updateRoom
+            ( \roomState -> do
+                state <- readTVar (stateVar channel)
+                let (newState, newRoomState) = processCommand roomState state cmd
+                writeTVar (stateVar channel) newState
+                return newRoomState
+            )
+            (roomVar channel)
+        )
       clientCommandsLoop channel
+
+updateRoom :: (Room.State -> STM Room.State) -> TVar Room -> STM ()
+updateRoom fn roomVar = do
+  room <- readTVar roomVar
+  newRoomState <- fn (Room.state room)
+  let room' = room {Room.state = newRoomState}
+  writeTVar roomVar room'
+  Room.broadcastChanges room'
 
 processCommand :: Room.State -> State -> ClientCommand -> (State, Room.State)
 processCommand roomState state cmd =
