@@ -498,14 +498,21 @@ viewColorPicker id state =
         (List.map viewColorOption state.connectionStates.freeSlots)
 
 
+viewUnderlinedPlayer : ( Color, String ) -> Html Msg
+viewUnderlinedPlayer ( color, name ) =
+    div
+        [ css
+            [ Css.textDecoration Css.underline
+            , -- using this instead of textDecorationN for compatibility with Safari
+              Css.property "text-decoration-color" (Color.theme color).solid.value
+            ]
+        ]
+        [ text name
+        ]
+
+
 viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool } -> Html Msg
 viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
-    let
-        viewPlayer ( color, name ) =
-            div [ css [ Css.textDecoration3 Css.underline Css.solid (Color.theme color).solid ] ]
-                [ text name
-                ]
-    in
     viewModal
         [ div
             [ css
@@ -522,7 +529,7 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
                     , Css.padding2 (px 15) (px 10)
                     ]
                 ]
-                (List.map viewPlayer connectedPlayers)
+                (List.map viewUnderlinedPlayer connectedPlayers)
             ]
         , Button.view
             { label = "Empezar juego"
@@ -536,7 +543,16 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
 viewPausedModal : List ( Color, String ) -> Html Msg
 viewPausedModal missingPlayers =
     viewModal
-        [ text "GAME IS PAUSED!"
+        [ text "Esperando jugadores"
+        , ul
+            [ css
+                [ Css.margin2 (px 10) zero
+                , Css.property "list-style-type" "unset"
+                , Css.property "padding-inline-start" "20px"
+                , Css.width (Css.pct 100)
+                ]
+            ]
+            (List.map viewUnderlinedPlayer missingPlayers)
         ]
 
 
