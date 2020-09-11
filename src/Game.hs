@@ -1,10 +1,11 @@
 module Game
   ( State,
     Country,
-    Color (..),
+    Color,
     Game.init,
     paintCountry,
     playerState,
+    playerName,
   )
 where
 
@@ -12,8 +13,8 @@ import qualified Client.Game
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
-import Game.Color (Color (..))
-import Game.Country (Country (..))
+import Game.Color (Color)
+import Game.Country (Country)
 import Game.TurnList (TurnList)
 import qualified Game.TurnList as TurnList
 import Result (Error (..))
@@ -32,6 +33,10 @@ init players =
     { players = players,
       paintedCountries = Map.empty
     }
+
+playerName :: Color -> State -> Maybe Text
+playerName color state =
+  fmap snd (TurnList.find (\(c, _) -> color == c) (players state))
 
 playerState :: Color -> State -> Client.Game.Game
 playerState color state =

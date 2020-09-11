@@ -3,8 +3,11 @@ module Game.TurnList
     Game.TurnList.init,
     current,
     advance,
+    find,
   )
 where
+
+import qualified Data.List
 
 data TurnList a = TurnList [a] a [a]
   deriving (Eq)
@@ -26,3 +29,11 @@ advance (TurnList before x after) =
       TurnList [] x' (reverse (x : before'))
     ([], []) ->
       TurnList [] x []
+
+find :: (a -> Bool) -> TurnList a -> Maybe a
+find predicate turnList =
+  (Data.List.find predicate (toList turnList))
+  where
+    toList :: TurnList a -> [a]
+    toList (TurnList before x after) =
+      (reverse before) ++ [x] ++ after
