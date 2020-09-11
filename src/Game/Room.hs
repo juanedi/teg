@@ -34,7 +34,7 @@ data Room = Room
 data State
   = WaitingForPlayers [(Color, Text)]
   | Started Game.State
-  | Paused [(Color, Text)] Game.State
+  | Paused [Color] Game.State
   deriving (Eq)
 
 init :: STM Room
@@ -75,15 +75,13 @@ join color name state =
     Started _ ->
       Left (InvalidMove "Trying to join a game that has already started")
     Paused missingPlayers gameState ->
-      case lookup color missingPlayers of
-        Nothing ->
-          Left (InvalidMove "The slot is not currently available in this game")
-        Just _ ->
-          case filter (\(c, _) -> c /= color) missingPlayers of
-            [] ->
-              Right (Started gameState)
-            missingPlayers' ->
-              Right (Paused missingPlayers' gameState)
+      if elem color missingPlayers
+        then case filter (\c -> c /= color) missingPlayers of
+          [] ->
+            Right (Started gameState)
+          missingPlayers' ->
+            Right (Paused missingPlayers' gameState)
+        else Left (InvalidMove "The slot is not currently available in this game")
 
 disconnect :: Color -> State -> State
 disconnect color state =
@@ -92,10 +90,10 @@ disconnect color state =
       WaitingForPlayers (filter (\(c, _) -> c /= color) connectedPlayers)
     Started gameState ->
       -- TODO: get name of the player for this color
-      Paused [(color, "TODO")] gameState
+      Paused [color] gameState
     Paused missingPlayers gameState ->
       -- TODO: get name of the player for this color
-      Paused ((color, "TODO") : missingPlayers) gameState
+      Paused (color : missingPlayers) gameState
 
 forClientInLobby :: State -> Either Error Client.Room.Lobby
 forClientInLobby state =
@@ -128,8 +126,17 @@ forClientInTheRoom color state =
               Client.Room.ReadyToStart connectionStates
     Started gameState ->
       Client.Room.Started (Game.playerState color gameState)
-    Paused missingPlayers _ ->
-      Client.Room.Paused missingPlayers
+    Paused missingPlayers gameState ->
+      Client.Room.Paused
+        ( foldl
+            ( \result c ->
+                case Game.playerName c gameState of
+                  Nothing -> result
+                  Just name -> (c, name) : result
+            )
+            []
+            missingPlayers
+        )
 
 checkReady :: [(Color, Text)] -> Maybe (TurnList (Color, Text))
 checkReady connectedPlayers =
