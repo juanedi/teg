@@ -107,8 +107,9 @@ forClientInLobby state =
           }
     Started _ ->
       Left (InvalidMove "The game has already started")
-    Paused _ _ ->
-      Left (InvalidMove "The game has already started")
+    Paused missingPlayers gameState ->
+      Right $
+        Client.Room.Reconnecting (missingPlayersInfo missingPlayers gameState)
 
 forClientInTheRoom :: Color -> State -> Client.Room.Room
 forClientInTheRoom color state =
@@ -127,16 +128,18 @@ forClientInTheRoom color state =
     Started gameState ->
       Client.Room.Started (Game.playerState color gameState)
     Paused missingPlayers gameState ->
-      Client.Room.Paused
-        ( foldl
-            ( \result c ->
-                case Game.playerName c gameState of
-                  Nothing -> result
-                  Just name -> (c, name) : result
-            )
-            []
-            missingPlayers
-        )
+      Client.Room.Paused (missingPlayersInfo missingPlayers gameState)
+
+missingPlayersInfo :: [Color] -> Game.State -> [(Color, Text)]
+missingPlayersInfo missingPlayers gameState =
+  foldl
+    ( \result c ->
+        case Game.playerName c gameState of
+          Nothing -> result
+          Just name -> (c, name) : result
+    )
+    []
+    missingPlayers
 
 checkReady :: [(Color, Text)] -> Maybe (TurnList (Color, Text))
 checkReady connectedPlayers =

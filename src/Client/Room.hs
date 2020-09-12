@@ -16,6 +16,7 @@ import Game.Color (Color)
 
 data Lobby
   = Lobby ConnectionStates
+  | Reconnecting [(Color, Text)]
 
 deriveBoth defaultOptions ''Lobby
 
