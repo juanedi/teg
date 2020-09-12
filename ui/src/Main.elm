@@ -59,7 +59,6 @@ type State
 type alias LobbyState =
     { name : String
     , selectedColor : Maybe Color
-    , hoveredColor : Maybe Color
     , connectionStates : Api.ConnectionStates
     }
 
@@ -67,8 +66,6 @@ type alias LobbyState =
 type Msg
     = PortInfoReceived Decode.Value
     | NameChanged String
-    | ColorHoveredIn Color
-    | ColorHoveredOut Color
     | ColorPicked Color
     | JoinGameClicked
     | StartGameClicked
@@ -125,7 +122,6 @@ update msg model =
                                     Lobby
                                         { name = ""
                                         , selectedColor = Nothing
-                                        , hoveredColor = Nothing
                                         , connectionStates = connectionStates
                                         }
                               }
@@ -183,30 +179,6 @@ update msg model =
             ( case model.state of
                 Lobby lobbyState ->
                     { model | state = Lobby { lobbyState | name = input } }
-
-                _ ->
-                    model
-            , Cmd.none
-            )
-
-        ColorHoveredIn player ->
-            ( case model.state of
-                Lobby lobbyState ->
-                    { model | state = Lobby { lobbyState | hoveredColor = Just player } }
-
-                _ ->
-                    model
-            , Cmd.none
-            )
-
-        ColorHoveredOut player ->
-            ( case model.state of
-                Lobby lobbyState ->
-                    if lobbyState.hoveredColor == Just player then
-                        { model | state = Lobby { lobbyState | hoveredColor = Nothing } }
-
-                    else
-                        model
 
                 _ ->
                     model
@@ -460,24 +432,27 @@ viewColorPicker : String -> LobbyState -> Html Msg
 viewColorPicker id state =
     -- TODO: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/ARIA_Techniques/Using_the_radio_role
     let
+        border color =
+            Css.borderBottom3 (px 2) Css.solid color
+
         viewColorOption slot =
             button
                 [ Events.onClick (ColorPicked slot)
-                , Events.onMouseEnter (ColorHoveredIn slot)
-                , Events.onMouseLeave (ColorHoveredOut slot)
                 , css
                     [ Css.marginRight (px 5)
                     , Css.backgroundColor Css.unset
                     , Css.border Css.unset
                     , Css.padding4 zero zero (px 2) zero
-                    , Css.borderBottom3 (px 2)
-                        Css.solid
-                        (if state.selectedColor == Just slot || state.hoveredColor == Just slot then
+                    , border
+                        (if state.selectedColor == Just slot then
                             (Color.theme slot).solid
 
                          else
                             Theme.white
                         )
+                    , Css.hover
+                        [ border (Color.theme slot).solid
+                        ]
                     ]
                 ]
                 [ div
