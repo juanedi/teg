@@ -17,6 +17,11 @@ grey =
     Css.hex "#CACACA"
 
 
+greyLight : Color
+greyLight =
+    Css.rgb 240 240 240
+
+
 backdrop : Color
 backdrop =
     Css.rgba 0 0 0 0.2

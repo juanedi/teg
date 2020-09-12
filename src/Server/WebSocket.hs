@@ -13,7 +13,8 @@ module Server.WebSocket
 where
 
 import qualified Client.Room
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async as Async (async, waitEitherCancel)
+import Control.Concurrent.STM (STM)
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TChan (TChan)
 import qualified Control.Concurrent.STM.TChan as TChan
@@ -22,7 +23,6 @@ import Control.Exception (catchJust)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (eitherDecode, encode)
 import Data.Text (Text, pack)
-import Debug.Trace
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
 import qualified Game
 import Game (Color, Country)
@@ -89,14 +89,15 @@ initChannel roomVar connection = do
             roomUpdates = roomUpdates,
             connection = connection
           }
-  Async.mapConcurrently_
-    id
-    [ clientCommandsLoop channel,
-      -- pushes changes to the room state to the client
-      do
-        pushRoomUpdate connection (Room.state room) initialState
-        notificationsLoop channel
-    ]
+  clientCommands <- async (clientCommandsLoop channel)
+  notifications <- async $ do
+    pushRoomUpdate connection (Room.state room) initialState
+    notificationsLoop channel
+  _ <-
+    waitEitherCancel
+      clientCommands
+      notifications
+  return ()
 
 notificationsLoop :: Channel -> IO ()
 notificationsLoop channel = do
@@ -124,7 +125,7 @@ roomUpdate roomState channelState =
   case channelState of
     WaitingToJoin ->
       case Room.forClientInLobby roomState of
-        Left error ->
+        Left _ ->
           Nothing
         Right lobby ->
           Just (LobbyUpdate lobby)
@@ -145,45 +146,62 @@ clientCommandsLoop channel = do
       (\errorEvent -> return errorEvent)
   case readResult of
     ConnectionClosed ->
-      return ()
+      STM.atomically
+        ( do
+            finalState <- readTVar (stateVar channel)
+            case finalState of
+              WaitingToJoin ->
+                return ()
+              InsideRoom color -> do
+                updateRoom
+                  (return . (Room.disconnect color))
+                  (roomVar channel)
+        )
     InvalidMessage _ ->
       -- TODO: notify the client somehow?
       clientCommandsLoop channel
     Command cmd -> do
-      processCommand (roomVar channel) (stateVar channel) cmd
+      STM.atomically
+        ( updateRoom
+            ( \roomState -> do
+                state <- readTVar (stateVar channel)
+                let (newState, newRoomState) = processCommand roomState state cmd
+                writeTVar (stateVar channel) newState
+                return newRoomState
+            )
+            (roomVar channel)
+        )
       clientCommandsLoop channel
 
-processCommand :: TVar Room -> TVar State -> ClientCommand -> IO ()
-processCommand roomVar stateVar cmd =
-  STM.atomically $
-    do
-      room <- readTVar roomVar
-      state <- readTVar stateVar
-      let roomState = Room.state room
-      let (newState, newRoomState) = case cmd of
-            JoinRoom color name ->
-              case Room.join color name roomState of
-                Left _ ->
-                  (state, roomState)
-                Right roomState' ->
-                  (InsideRoom color, roomState')
-            StartGame ->
-              case Room.startGame roomState of
-                Left _ ->
-                  (state, roomState)
-                Right roomState' ->
-                  (state, roomState')
-            PaintCountry color country ->
-              case Room.updateGame (Game.paintCountry color country) roomState of
-                Left _ ->
-                  (state, roomState)
-                Right roomState' ->
-                  (state, roomState')
-      let room' = room {Room.state = newRoomState}
-      writeTVar roomVar room'
-      writeTVar stateVar newState
-      Room.broadcastChanges room'
-      return ()
+updateRoom :: (Room.State -> STM Room.State) -> TVar Room -> STM ()
+updateRoom fn roomVar = do
+  room <- readTVar roomVar
+  newRoomState <- fn (Room.state room)
+  let room' = room {Room.state = newRoomState}
+  writeTVar roomVar room'
+  Room.broadcastChanges room'
+
+processCommand :: Room.State -> State -> ClientCommand -> (State, Room.State)
+processCommand roomState state cmd =
+  case cmd of
+    JoinRoom color name ->
+      case Room.join color name roomState of
+        Left _ ->
+          (state, roomState)
+        Right roomState' ->
+          (InsideRoom color, roomState')
+    StartGame ->
+      case Room.startGame roomState of
+        Left _ ->
+          (state, roomState)
+        Right roomState' ->
+          (state, roomState')
+    PaintCountry color country ->
+      case Room.updateGame (Game.paintCountry color country) roomState of
+        Left _ ->
+          (state, roomState)
+        Right roomState' ->
+          (state, roomState')
 
 fromDataMessage :: DataMessage -> ReadResult
 fromDataMessage dataMessage =

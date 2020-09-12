@@ -49,12 +49,16 @@ type State
     | ReadyToStart Api.ConnectionStates
     | Starting Api.ConnectionStates
     | Playing Gameplay.State
+    | -- the user is in the game, but others have disconnected
+      Paused (List ( Color, String ))
+    | -- the user is not part of the game, but the game is paused because a
+      -- player left so they are offered to pick one of the free spots
+      Reconnecting (List ( Color, String ))
 
 
 type alias LobbyState =
     { name : String
     , selectedColor : Maybe Color
-    , hoveredColor : Maybe Color
     , connectionStates : Api.ConnectionStates
     }
 
@@ -62,10 +66,9 @@ type alias LobbyState =
 type Msg
     = PortInfoReceived Decode.Value
     | NameChanged String
-    | ColorHoveredIn Color
-    | ColorHoveredOut Color
     | ColorPicked Color
     | JoinGameClicked
+    | ReconnectClicked Color String
     | StartGameClicked
     | GameplayMsg Gameplay.Msg
 
@@ -107,6 +110,11 @@ update msg model =
     case msg of
         PortInfoReceived jsonValue ->
             case Decode.decodeValue Api.jsonDecDataForClient jsonValue of
+                Ok (Api.LobbyUpdate (Api.Reconnecting missingPlayers)) ->
+                    ( { model | state = Reconnecting missingPlayers }
+                    , Cmd.none
+                    )
+
                 Ok (Api.LobbyUpdate (Api.Lobby connectionStates)) ->
                     case model.state of
                         Loading ->
@@ -115,7 +123,6 @@ update msg model =
                                     Lobby
                                         { name = ""
                                         , selectedColor = Nothing
-                                        , hoveredColor = Nothing
                                         , connectionStates = connectionStates
                                         }
                               }
@@ -160,6 +167,11 @@ update msg model =
                             , Cmd.none
                             )
 
+                        Api.Paused missingPlayers ->
+                            ( { model | state = Paused missingPlayers }
+                            , Cmd.none
+                            )
+
                 Err _ ->
                     -- TODO: handle error
                     ( model, Cmd.none )
@@ -168,30 +180,6 @@ update msg model =
             ( case model.state of
                 Lobby lobbyState ->
                     { model | state = Lobby { lobbyState | name = input } }
-
-                _ ->
-                    model
-            , Cmd.none
-            )
-
-        ColorHoveredIn player ->
-            ( case model.state of
-                Lobby lobbyState ->
-                    { model | state = Lobby { lobbyState | hoveredColor = Just player } }
-
-                _ ->
-                    model
-            , Cmd.none
-            )
-
-        ColorHoveredOut player ->
-            ( case model.state of
-                Lobby lobbyState ->
-                    if lobbyState.hoveredColor == Just player then
-                        { model | state = Lobby { lobbyState | hoveredColor = Nothing } }
-
-                    else
-                        model
 
                 _ ->
                     model
@@ -230,6 +218,18 @@ update msg model =
                 ReadyToStart connectionStates ->
                     ( { model | state = Starting connectionStates }
                     , Send Api.StartGame
+                        |> encodePortCommand
+                        |> sendPortCommand
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        ReconnectClicked color name ->
+            case model.state of
+                Reconnecting _ ->
+                    ( { model | state = Joining color }
+                    , Send (Api.JoinRoom color name)
                         |> encodePortCommand
                         |> sendPortCommand
                     )
@@ -336,6 +336,16 @@ view model =
                     |> Styled.map GameplayMsg
                 ]
 
+            Paused missingPlayers ->
+                [ staticBoard model.boardSvgPath
+                , viewPausedModal missingPlayers
+                ]
+
+            Reconnecting missingPlayers ->
+                [ staticBoard model.boardSvgPath
+                , viewReconnectModal missingPlayers
+                ]
+
 
 viewModal : List (Html Msg) -> Html Msg
 viewModal contents =
@@ -362,6 +372,7 @@ viewModal contents =
                 , Css.displayFlex
                 , Css.flexDirection Css.column
                 , Css.alignItems Css.center
+                , Css.minWidth (px 200)
                 ]
             ]
             contents
@@ -434,24 +445,27 @@ viewColorPicker : String -> LobbyState -> Html Msg
 viewColorPicker id state =
     -- TODO: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/ARIA_Techniques/Using_the_radio_role
     let
+        border color =
+            Css.borderBottom3 (px 2) Css.solid color
+
         viewColorOption slot =
             button
                 [ Events.onClick (ColorPicked slot)
-                , Events.onMouseEnter (ColorHoveredIn slot)
-                , Events.onMouseLeave (ColorHoveredOut slot)
                 , css
                     [ Css.marginRight (px 5)
                     , Css.backgroundColor Css.unset
                     , Css.border Css.unset
                     , Css.padding4 zero zero (px 2) zero
-                    , Css.borderBottom3 (px 2)
-                        Css.solid
-                        (if state.selectedColor == Just slot || state.hoveredColor == Just slot then
+                    , border
+                        (if state.selectedColor == Just slot then
                             (Color.theme slot).solid
 
                          else
                             Theme.white
                         )
+                    , Css.hover
+                        [ border (Color.theme slot).solid
+                        ]
                     ]
                 ]
                 [ div
@@ -487,14 +501,21 @@ viewColorPicker id state =
         (List.map viewColorOption state.connectionStates.freeSlots)
 
 
+viewUnderlinedPlayer : ( Color, String ) -> Html Msg
+viewUnderlinedPlayer ( color, name ) =
+    div
+        [ css
+            [ Css.textDecoration Css.underline
+            , -- using this instead of textDecorationN for compatibility with Safari
+              Css.property "text-decoration-color" (Color.theme color).solid.value
+            ]
+        ]
+        [ text name
+        ]
+
+
 viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool } -> Html Msg
 viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
-    let
-        viewPlayer ( color, name ) =
-            div [ css [ Css.textDecoration3 Css.underline Css.solid (Color.theme color).solid ] ]
-                [ text name
-                ]
-    in
     viewModal
         [ div
             [ css
@@ -511,7 +532,7 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
                     , Css.padding2 (px 15) (px 10)
                     ]
                 ]
-                (List.map viewPlayer connectedPlayers)
+                (List.map viewUnderlinedPlayer connectedPlayers)
             ]
         , Button.view
             { label = "Empezar juego"
@@ -519,6 +540,64 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
             , onClick = Just StartGameClicked
             , css = [ Css.marginTop (px 25) ]
             }
+        ]
+
+
+viewPausedModal : List ( Color, String ) -> Html Msg
+viewPausedModal missingPlayers =
+    viewModal
+        [ text "Esperando jugadores"
+        , ul
+            [ css
+                [ Css.margin2 (px 10) zero
+                , Css.property "list-style-type" "unset"
+                , Css.property "padding-inline-start" "20px"
+                , Css.width (Css.pct 100)
+                ]
+            ]
+            (List.map viewUnderlinedPlayer missingPlayers)
+        ]
+
+
+viewReconnectModal : List ( Color, String ) -> Html Msg
+viewReconnectModal missingPlayers =
+    viewModal
+        [ text "Volver al juego"
+        , ul
+            [ css
+                [ Css.margin4 (px 20) zero zero zero
+                , Css.listStyle Css.none
+                , Css.displayFlex
+                , Css.flexDirection Css.column
+                , Css.justifyContent Css.stretch
+                , Css.padding Css.zero
+                , Css.width (Css.pct 100)
+                ]
+            ]
+            (List.map
+                (\( color, name ) ->
+                    li [ css [ Css.marginBottom (px 10) ] ]
+                        [ button
+                            [ css
+                                [ Css.backgroundColor Theme.white
+                                , Css.border3 (px 1) Css.solid Theme.grey
+                                , Css.property "font" "unset"
+                                , Css.padding (px 10)
+                                , Css.borderRadius (px 3)
+                                , Css.width (Css.pct 100)
+                                , Css.cursor Css.pointer
+                                , Css.hover
+                                    [ Css.backgroundColor Theme.greyLight
+                                    ]
+                                ]
+                            , Events.onClick (ReconnectClicked color name)
+                            ]
+                            [ viewUnderlinedPlayer ( color, name )
+                            ]
+                        ]
+                )
+                missingPlayers
+            )
         ]
 
 

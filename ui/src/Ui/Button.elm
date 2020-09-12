@@ -21,6 +21,7 @@ view config =
                         [ [ Css.property "font" "unset"
                           , Css.height (px 60)
                           , Css.minWidth (px 100)
+                          , Css.cursor Css.pointer
                           ]
                         , config.css
                         ]
