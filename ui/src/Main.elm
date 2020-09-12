@@ -68,6 +68,7 @@ type Msg
     | NameChanged String
     | ColorPicked Color
     | JoinGameClicked
+    | ReconnectClicked Color String
     | StartGameClicked
     | GameplayMsg Gameplay.Msg
 
@@ -217,6 +218,18 @@ update msg model =
                 ReadyToStart connectionStates ->
                     ( { model | state = Starting connectionStates }
                     , Send Api.StartGame
+                        |> encodePortCommand
+                        |> sendPortCommand
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        ReconnectClicked color name ->
+            case model.state of
+                Reconnecting _ ->
+                    ( { model | state = Joining color }
+                    , Send (Api.JoinRoom color name)
                         |> encodePortCommand
                         |> sendPortCommand
                     )
@@ -550,8 +563,7 @@ viewReconnectModal : List ( Color, String ) -> Html Msg
 viewReconnectModal missingPlayers =
     viewModal
         [ text "Volver al juego"
-        , -- TODO: let the user re-join!
-          ul
+        , ul
             [ css
                 [ Css.margin4 (px 20) zero zero zero
                 , Css.listStyle Css.none
@@ -578,6 +590,7 @@ viewReconnectModal missingPlayers =
                                     [ Css.backgroundColor Theme.greyLight
                                     ]
                                 ]
+                            , Events.onClick (ReconnectClicked color name)
                             ]
                             [ viewUnderlinedPlayer ( color, name )
                             ]
