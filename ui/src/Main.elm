@@ -49,7 +49,11 @@ type State
     | ReadyToStart Api.ConnectionStates
     | Starting Api.ConnectionStates
     | Playing Gameplay.State
-    | Paused (List ( Color, String ))
+    | -- the user is in the game, but others have disconnected
+      Paused (List ( Color, String ))
+    | -- the user is not part of the game, but the game is paused because a
+      -- player left so they are offered to pick one of the free spots
+      Reconnecting (List ( Color, String ))
 
 
 type alias LobbyState =
@@ -108,6 +112,11 @@ update msg model =
     case msg of
         PortInfoReceived jsonValue ->
             case Decode.decodeValue Api.jsonDecDataForClient jsonValue of
+                Ok (Api.LobbyUpdate (Api.Reconnecting missingPlayers)) ->
+                    ( { model | state = Reconnecting missingPlayers }
+                    , Cmd.none
+                    )
+
                 Ok (Api.LobbyUpdate (Api.Lobby connectionStates)) ->
                     case model.state of
                         Loading ->
@@ -347,6 +356,11 @@ view model =
                 , viewPausedModal missingPlayers
                 ]
 
+            Reconnecting missingPlayers ->
+                [ staticBoard model.boardSvgPath
+                , viewReconnectModal missingPlayers
+                ]
+
 
 viewModal : List (Html Msg) -> Html Msg
 viewModal contents =
@@ -373,6 +387,7 @@ viewModal contents =
                 , Css.displayFlex
                 , Css.flexDirection Css.column
                 , Css.alignItems Css.center
+                , Css.minWidth (px 200)
                 ]
             ]
             contents
@@ -553,6 +568,48 @@ viewPausedModal missingPlayers =
                 ]
             ]
             (List.map viewUnderlinedPlayer missingPlayers)
+        ]
+
+
+viewReconnectModal : List ( Color, String ) -> Html Msg
+viewReconnectModal missingPlayers =
+    viewModal
+        [ text "Volver al juego"
+        , -- TODO: let the user re-join!
+          ul
+            [ css
+                [ Css.margin4 (px 20) zero zero zero
+                , Css.listStyle Css.none
+                , Css.displayFlex
+                , Css.flexDirection Css.column
+                , Css.justifyContent Css.stretch
+                , Css.padding Css.zero
+                , Css.width (Css.pct 100)
+                ]
+            ]
+            (List.map
+                (\( color, name ) ->
+                    li [ css [ Css.marginBottom (px 10) ] ]
+                        [ button
+                            [ css
+                                [ Css.backgroundColor Theme.white
+                                , Css.border3 (px 1) Css.solid Theme.grey
+                                , Css.property "font" "unset"
+                                , Css.padding (px 10)
+                                , Css.borderRadius (px 3)
+                                , Css.width (Css.pct 100)
+                                , Css.cursor Css.pointer
+                                , Css.hover
+                                    [ Css.backgroundColor Theme.greyLight
+                                    ]
+                                ]
+                            ]
+                            [ viewUnderlinedPlayer ( color, name )
+                            ]
+                        ]
+                )
+                missingPlayers
+            )
         ]
 
 
