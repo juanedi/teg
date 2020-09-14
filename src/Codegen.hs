@@ -12,6 +12,7 @@ import Data.Text (pack)
 import qualified Data.Text.IO
 import Elm.Module
 import qualified Game
+import qualified Server.Flags
 import qualified Server.WebSocket as WebSocket
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath.Posix (joinPath)
@@ -33,13 +34,14 @@ run =
                   DefineElm (Proxy :: Proxy Client.Game.Instructions),
                   DefineElm (Proxy :: Proxy Client.Room.Lobby),
                   DefineElm (Proxy :: Proxy Client.Room.Room),
-                  DefineElm (Proxy :: Proxy Game.Country),
                   DefineElm (Proxy :: Proxy Game.Color),
+                  DefineElm (Proxy :: Proxy Game.Country),
+                  DefineElm (Proxy :: Proxy Server.Flags.Flags),
                   DefineElm (Proxy :: Proxy WebSocket.ClientCommand),
                   DefineElm (Proxy :: Proxy WebSocket.DataForClient)
                 ]
 
         Data.Text.IO.writeFile (joinPath [outputDir, fileName]) (pack content)
         putStrLn "Formatting generated code using elm-format..."
-        createProcess (proc "elm-format" [fileName, "--yes"]) {cwd = Just outputDir}
+        _ <- createProcess (proc "elm-format" [fileName, "--yes"]) {cwd = Just outputDir}
         putStrLn "Done!"

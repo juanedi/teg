@@ -1,5 +1,8 @@
+{-# LANGUAGE InstanceSigs #-}
+
 module Game.Room
   ( Room,
+    Id (..),
     State,
     Game.Room.init,
     subscribe,
@@ -18,13 +21,25 @@ import qualified Client.ConnectionStates as ConnectionStates
 import qualified Client.Room
 import Control.Concurrent.STM (STM)
 import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChan, writeTChan)
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import qualified Game
 import Game.Color (Color)
 import qualified Game.Color as Color
 import Game.TurnList (TurnList)
 import qualified Game.TurnList as TurnList
 import Result (Error (..))
+import Web.HttpApiData (FromHttpApiData (..))
+
+newtype Id = Id Text
+
+instance FromHttpApiData Id where
+  parseUrlPiece :: Text -> Either Text Id
+  parseUrlPiece fragment =
+    Right (Id fragment)
+
+instance Show Id where
+  show :: Id -> String
+  show (Id id) = unpack id
 
 data Room = Room
   { broadcastChannel :: TChan State,

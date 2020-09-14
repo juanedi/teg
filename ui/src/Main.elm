@@ -26,13 +26,8 @@ port portInfo : (Value -> msg) -> Sub msg
 
 
 type PortCommand
-    = InitSocket
+    = InitSocket String
     | Send Api.ClientCommand
-
-
-type alias Flags =
-    { boardSvgPath : String
-    }
 
 
 type alias Model =
@@ -73,7 +68,7 @@ type Msg
     | GameplayMsg Gameplay.Msg
 
 
-main : Program Flags Model Msg
+main : Program Api.Flags Model Msg
 main =
     Browser.element
         { init = init
@@ -83,20 +78,25 @@ main =
         }
 
 
-init : Flags -> ( Model, Cmd Msg )
-init { boardSvgPath } =
-    ( { boardSvgPath = boardSvgPath
+init : Api.Flags -> ( Model, Cmd Msg )
+init flags =
+    ( { boardSvgPath = flags.boardSvgPath
       , state = Loading
       }
-    , sendPortCommand (encodePortCommand InitSocket)
+    , InitSocket flags.websocketUrl
+        |> encodePortCommand
+        |> sendPortCommand
     )
 
 
 encodePortCommand : PortCommand -> Value
 encodePortCommand cmd =
     case cmd of
-        InitSocket ->
-            Encode.object [ ( "tag", Encode.string "init_socket" ) ]
+        InitSocket url ->
+            Encode.object
+                [ ( "tag", Encode.string "init_socket" )
+                , ( "url", Encode.string url )
+                ]
 
         Send socketMsg ->
             Encode.object

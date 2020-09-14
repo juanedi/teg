@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
@@ -14,11 +15,15 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
 import Servant
+import Servant.HTML.Blaze
+import qualified Server.Flags as Flags
+import qualified Server.Templates as Templates
 import qualified Server.WebSocket as WebSocket
 import qualified System.Directory as Directory
 import System.Environment (lookupEnv)
 import qualified System.FilePath.Posix as FilePath
 import qualified System.Log.FastLogger.Date as Date
+import qualified Text.Blaze.Html5 as H
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
@@ -27,7 +32,12 @@ type StaticContentRoutes =
     :<|> Raw
 
 type Routes =
-  WebSocket.WebSocketApi
+  ( "g"
+      :> Capture "roomId" Room.Id
+      :> ( Get '[HTML] H.Html
+             :<|> "ws" :> WebSocket.WebSocketApi
+         )
+  )
     :<|> StaticContentRoutes
 
 run :: IO ()
@@ -59,7 +69,18 @@ initializeLogger logFile = do
 app :: TVar Room -> Application
 app roomVar =
   serve api $
-    WebSocket.server roomVar
+    ( \(Room.Id roomId) ->
+        ( return
+            ( Templates.game
+                ( Flags.Flags
+                    { Flags.boardSvgPath = "/map.svg",
+                      Flags.websocketUrl = mconcat ["ws://localhost:5000/g/", roomId, "/ws"]
+                    }
+                )
+            )
+        )
+          :<|> WebSocket.server roomVar
+    )
       :<|> staticContentServer
 
 api :: Proxy Routes

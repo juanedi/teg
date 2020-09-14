@@ -35,7 +35,7 @@ import Servant
 import Servant.API.WebSocket
 import Server.Serialization (tagToApiLabel)
 
-type WebSocketApi = "ws" :> WebSocketPending
+type WebSocketApi = WebSocketPending
 
 data Channel = Channel
   { -- reference to the room, shared accross all client channels.
