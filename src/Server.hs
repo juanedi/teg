@@ -9,6 +9,7 @@ module Server (Server.run) where
 import qualified Control.Concurrent.STM as STM
 import Control.Concurrent.STM.TVar (TVar, newTVar)
 import Data.Maybe (fromMaybe)
+import Data.Text (unpack)
 import Game.Room (Room)
 import qualified Game.Room as Room
 import Network.Wai
@@ -17,6 +18,7 @@ import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apach
 import Servant
 import Servant.HTML.Blaze
 import qualified Server.Flags as Flags
+import Server.PostRedirect
 import qualified Server.Templates as Templates
 import qualified Server.WebSocket as WebSocket
 import qualified System.Directory as Directory
@@ -31,14 +33,13 @@ type StaticContentRoutes =
   "_build" :> Raw
     :<|> Raw
 
-type Routes =
-  ( "g"
-      :> Capture "roomId" Room.Id
-      :> ( Get '[HTML] H.Html
-             :<|> "ws" :> WebSocket.WebSocketApi
-         )
-  )
-    :<|> StaticContentRoutes
+{- ORMOLU_DISABLE -}
+type Routes = Get '[HTML] H.Html
+         :<|> ( "g" :> ( PostRedirect 301 String
+                  :<|> ( Capture "roomId" Room.Id :> ( Get '[HTML] H.Html
+                                                :<|> "ws" :> WebSocket.WebSocketApi))))
+         :<|> StaticContentRoutes
+{- ORMOLU_ENABLE -}
 
 run :: IO ()
 run = do
@@ -66,22 +67,50 @@ initializeLogger logFile = do
             getTime
         )
 
+{- ORMOLU_DISABLE -}
 app :: TVar Room -> Application
 app roomVar =
   serve api $
-    ( \(Room.Id roomId) ->
-        ( return
-            ( Templates.game
-                ( Flags.Flags
-                    { Flags.boardSvgPath = "/map.svg",
-                      Flags.websocketUrl = mconcat ["ws://localhost:5000/g/", roomId, "/ws"]
-                    }
+        home
+  :<|> ( createRoom
+    :<|> ( \roomId -> showRoom roomId
+                 :<|> WebSocket.server roomVar
                 )
+        )
+  :<|> staticContentServer
+{- ORMOLU_ENABLE -}
+
+home :: Handler H.Html
+home =
+  return Templates.home
+
+createRoom :: Handler (RedirectResponse String)
+createRoom =
+  -- TODO
+  let roomId = "foo"
+   in redirect ("/g/" ++ unpack roomId)
+
+showRoom :: Room.Id -> Handler H.Html
+showRoom (Room.Id roomId) =
+  -- TODO
+  if roomId == "foo"
+    then
+      return
+        ( Templates.game
+            ( Flags.Flags
+                { Flags.boardSvgPath = "/map.svg",
+                  Flags.websocketUrl = mconcat ["ws://localhost:5000/g/", roomId, "/ws"]
+                }
             )
         )
-          :<|> WebSocket.server roomVar
-    )
-      :<|> staticContentServer
+    else
+      throwError $
+        ServerError
+          { errHTTPCode = 404,
+            errReasonPhrase = "That room doesn't exist.",
+            errBody = "That room doesn't exist. Maybe the game already finished or you got an invalid link?",
+            errHeaders = []
+          }
 
 api :: Proxy Routes
 api = Proxy
