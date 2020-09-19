@@ -13,7 +13,7 @@ import Server.Flags (Flags)
 import qualified Text.Blaze as Blaze
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
-import Text.Blaze.Html5.Attributes (action, charset, href, method, rel, src, type_, value)
+import Text.Blaze.Html5.Attributes (charset, href, rel, src, type_)
 import qualified Text.Blaze.Html5.Attributes as A
 
 home :: Html
@@ -24,9 +24,10 @@ home =
         meta ! charset "UTF-8"
         title "T.E.G."
         link ! href "https://fonts.googleapis.com/css2?family=Antic+Slab&display=swap" ! rel "stylesheet"
+        script ! src "/_build/home.js" $ ""
+        script ! src "/home.js" $ ""
       body $ do
-        form ! method "post" ! action "g" $
-          input ! type_ "submit" ! value "Foo"
+        H.div ! A.id "elm-host" $ ""
 
 game :: Flags -> Html
 game flags =

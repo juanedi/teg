@@ -1,40 +1,74 @@
-module Ui.Button exposing (..)
+module Ui.Button exposing (button, submit)
 
 import Css exposing (px)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes as Attributes exposing (css)
 import Html.Styled.Events as Events
+import Ui.Theme as Theme
 
 
-view :
+submit :
+    { label : String
+    , isEnabled : Bool
+    , css : List Css.Style
+    }
+    -> List (Html.Attribute msg)
+    -> Html msg
+submit config attrs =
+    Html.input
+        (List.concat
+            [ [ Attributes.type_ "submit"
+              , Attributes.value config.label
+              , Attributes.disabled (not config.isEnabled)
+              , css (styles config.css)
+              ]
+            , attrs
+            ]
+        )
+        []
+
+
+button :
     { label : String
     , onClick : Maybe msg
     , isEnabled : Bool
     , css : List Css.Style
     }
+    -> List (Html.Attribute msg)
     -> Html msg
-view config =
+button config attrs =
     Html.button
         (List.concat
-            [ [ css
-                    (List.concat
-                        [ [ Css.property "font" "unset"
-                          , Css.height (px 60)
-                          , Css.minWidth (px 100)
-                          , Css.cursor Css.pointer
-                          ]
-                        , config.css
-                        ]
-                    )
+            [ [ Attributes.disabled (not config.isEnabled)
+              , css (styles config.css)
               ]
-            , [ Attributes.disabled (not config.isEnabled) ]
             , case config.onClick of
                 Nothing ->
                     []
 
                 Just msg ->
                     [ Events.onClick msg ]
+            , attrs
             ]
         )
         [ Html.text config.label
+        ]
+
+
+styles : List Css.Style -> List Css.Style
+styles customizations =
+    List.concat
+        [ [ Css.property "font" "unset"
+          , Css.height (px 60)
+          , Css.minWidth (px 100)
+          , Css.cursor Css.pointer
+          , Css.borderStyle Css.none
+          , Css.borderRadius (px 6)
+          , Css.boxShadow5 Css.inset (px -1) (px -1) (px 4) (Css.hex "#0e73a9")
+          , Css.backgroundColor (Css.hex "#1293D8")
+          , Css.color Theme.white
+          , Css.fontWeight Css.bold
+          , Css.padding2 Css.zero (px 18)
+          ]
+        , customizations
         ]
