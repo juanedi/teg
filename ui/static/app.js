@@ -29,6 +29,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
   }
 
+  function copyText(containerId) {
+    let element = document.getElementById(containerId)
+    if (element) {
+      element.select()
+      document.execCommand("copy")
+    }
+  }
+
   app.ports.sendPortCommand.subscribe(function(cmd) {
     switch(cmd.tag) {
     case "init_socket":
@@ -36,6 +44,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
       break
     case "send":
       sendMsg(cmd.msg)
+      break
+    case "copy":
+      copyText(cmd.containerId)
       break
     default:
       console.error("Unrecognized command sent through port", cmd)

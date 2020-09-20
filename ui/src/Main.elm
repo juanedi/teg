@@ -29,6 +29,7 @@ port portInfo : (Value -> msg) -> Sub msg
 type PortCommand
     = InitSocket String
     | Send Api.ClientCommand
+    | Copy String
 
 
 type alias Model =
@@ -68,6 +69,7 @@ type Msg
     = PortInfoReceived Decode.Value
     | NameChanged String
     | ColorPicked Color
+    | CopyRoomUrl
     | JoinGameClicked
     | ReconnectClicked Color String
     | StartGameClicked
@@ -109,6 +111,12 @@ encodePortCommand cmd =
             Encode.object
                 [ ( "tag", Encode.string "send" )
                 , ( "msg", Api.jsonEncClientCommand socketMsg )
+                ]
+
+        Copy text ->
+            Encode.object
+                [ ( "tag", Encode.string "copy" )
+                , ( "containerId", Encode.string text )
                 ]
 
 
@@ -202,6 +210,13 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
+
+        CopyRoomUrl ->
+            ( model
+            , Copy roomUrlContainerId
+                |> encodePortCommand
+                |> sendPortCommand
+            )
 
         JoinGameClicked ->
             case model.state of
@@ -422,6 +437,11 @@ viewLobbyModal roomUrl state =
         )
 
 
+roomUrlContainerId : String
+roomUrlContainerId =
+    "room-url"
+
+
 viewCopyRoomUrl : Url -> Html Msg
 viewCopyRoomUrl roomUrl =
     div
@@ -436,12 +456,13 @@ viewCopyRoomUrl roomUrl =
             [ input
                 [ Attributes.type_ "text"
                 , Attributes.value roomUrl
+                , Attributes.id roomUrlContainerId
                 , css [ Css.flexGrow (Css.int 1) ]
                 ]
                 []
             , Button.button
                 { label = "Copiar"
-                , onClick = Nothing
+                , onClick = Just CopyRoomUrl
                 , isEnabled = True
                 , size = Button.Small
                 , css =
