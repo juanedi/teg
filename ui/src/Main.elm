@@ -70,6 +70,7 @@ type Msg
     | NameChanged String
     | ColorPicked Color
     | CopyRoomUrl
+    | IgnoreRoomUrlInput
     | JoinGameClicked
     | ReconnectClicked Color String
     | StartGameClicked
@@ -217,6 +218,9 @@ update msg model =
                 |> encodePortCommand
                 |> sendPortCommand
             )
+
+        IgnoreRoomUrlInput ->
+            ( model, Cmd.none )
 
         JoinGameClicked ->
             case model.state of
@@ -457,6 +461,7 @@ viewCopyRoomUrl roomUrl =
                 [ Attributes.type_ "text"
                 , Attributes.value roomUrl
                 , Attributes.id roomUrlContainerId
+                , Events.onInput (\_ -> IgnoreRoomUrlInput)
                 , css [ Css.flexGrow (Css.int 1) ]
                 ]
                 []
