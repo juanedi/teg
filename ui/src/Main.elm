@@ -16,6 +16,7 @@ import Http
 import Json.Decode as Decode exposing (Value)
 import Json.Encode as Encode
 import Ui.Button as Button
+import Ui.Modal as Modal
 import Ui.Theme as Theme
 
 
@@ -26,13 +27,8 @@ port portInfo : (Value -> msg) -> Sub msg
 
 
 type PortCommand
-    = InitSocket
+    = InitSocket String
     | Send Api.ClientCommand
-
-
-type alias Flags =
-    { boardSvgPath : String
-    }
 
 
 type alias Model =
@@ -73,7 +69,7 @@ type Msg
     | GameplayMsg Gameplay.Msg
 
 
-main : Program Flags Model Msg
+main : Program Api.Flags Model Msg
 main =
     Browser.element
         { init = init
@@ -83,20 +79,25 @@ main =
         }
 
 
-init : Flags -> ( Model, Cmd Msg )
-init { boardSvgPath } =
-    ( { boardSvgPath = boardSvgPath
+init : Api.Flags -> ( Model, Cmd Msg )
+init flags =
+    ( { boardSvgPath = flags.boardSvgPath
       , state = Loading
       }
-    , sendPortCommand (encodePortCommand InitSocket)
+    , InitSocket flags.websocketUrl
+        |> encodePortCommand
+        |> sendPortCommand
     )
 
 
 encodePortCommand : PortCommand -> Value
 encodePortCommand cmd =
     case cmd of
-        InitSocket ->
-            Encode.object [ ( "tag", Encode.string "init_socket" ) ]
+        InitSocket url ->
+            Encode.object
+                [ ( "tag", Encode.string "init_socket" )
+                , ( "url", Encode.string url )
+                ]
 
         Send socketMsg ->
             Encode.object
@@ -347,38 +348,6 @@ view model =
                 ]
 
 
-viewModal : List (Html Msg) -> Html Msg
-viewModal contents =
-    div
-        [ css
-            [ Css.position Css.fixed
-            , Css.top zero
-            , Css.left zero
-            , Css.width (Css.vw 100)
-            , Css.height (Css.vh 100)
-            , Css.displayFlex
-            , Css.justifyContent Css.center
-            , Css.alignItems Css.center
-            , Css.fontSize (px 18)
-            , Css.backgroundColor Theme.backdrop
-            ]
-        ]
-        [ div
-            [ css
-                [ Css.backgroundColor (Css.rgb 255 255 255)
-                , Css.padding2 (px 15) (px 20)
-                , Css.borderRadius (px 8)
-                , Css.boxShadow4 (px 1) (px 1) (px 2) (px 1)
-                , Css.displayFlex
-                , Css.flexDirection Css.column
-                , Css.alignItems Css.center
-                , Css.minWidth (px 200)
-                ]
-            ]
-            contents
-        ]
-
-
 viewLobbyModal : LobbyState -> Html Msg
 viewLobbyModal state =
     let
@@ -400,7 +369,7 @@ viewLobbyModal state =
                 , inputMarkup
                 ]
     in
-    viewModal
+    Modal.view
         (if List.isEmpty state.connectionStates.freeSlots then
             [ text "No quedan lugares 💩" ]
 
@@ -431,12 +400,13 @@ viewLobbyModal state =
                     "Color"
                     (viewColorPicker "color-input" state)
                 ]
-            , Button.view
+            , Button.button
                 { label = "Entrar"
                 , isEnabled = validateLobbyInput state /= Nothing
                 , onClick = Just JoinGameClicked
                 , css = [ Css.marginTop (px 25) ]
                 }
+                []
             ]
         )
 
@@ -516,7 +486,7 @@ viewUnderlinedPlayer ( color, name ) =
 
 viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool } -> Html Msg
 viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
-    viewModal
+    Modal.view
         [ div
             [ css
                 [ Css.displayFlex
@@ -534,18 +504,19 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
                 ]
                 (List.map viewUnderlinedPlayer connectedPlayers)
             ]
-        , Button.view
+        , Button.button
             { label = "Empezar juego"
             , isEnabled = readyToStart
             , onClick = Just StartGameClicked
             , css = [ Css.marginTop (px 25) ]
             }
+            []
         ]
 
 
 viewPausedModal : List ( Color, String ) -> Html Msg
 viewPausedModal missingPlayers =
-    viewModal
+    Modal.view
         [ text "Esperando jugadores"
         , ul
             [ css
@@ -561,7 +532,7 @@ viewPausedModal missingPlayers =
 
 viewReconnectModal : List ( Color, String ) -> Html Msg
 viewReconnectModal missingPlayers =
-    viewModal
+    Modal.view
         [ text "Volver al juego"
         , ul
             [ css

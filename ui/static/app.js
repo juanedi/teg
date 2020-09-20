@@ -1,18 +1,15 @@
 document.addEventListener('DOMContentLoaded', (event) => {
   const app = Elm.Main.init({
     node: document.getElementById('elm-host'),
-    flags: {
-      viewport: { width: window.innerWidth, height: window.innerHeight},
-      boardSvgPath: "/map.svg"
-    }
+    flags: window.TEG_FLAGS
   })
 
   let socket = null
 
-  function initSocket() {
+  function initSocket(url) {
     console.log("initializing game socket")
 
-    socket = new WebSocket(`ws://localhost:5000/ws/`)
+    socket = new WebSocket(url)
 
     socket.onopen = function (event) {
       console.log("socket: connection succeeded!")
@@ -35,7 +32,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
   app.ports.sendPortCommand.subscribe(function(cmd) {
     switch(cmd.tag) {
     case "init_socket":
-      initSocket()
+      initSocket(cmd.url)
       break
     case "send":
       sendMsg(cmd.msg)

@@ -1,24 +1,36 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Server (Server.run) where
 
 import qualified Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TVar (TVar, newTVar)
+import Control.Concurrent.STM.TVar (TVar, modifyTVar, newTVar, readTVar)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
+import Data.Text (unpack)
+import qualified Data.UUID
+import qualified Data.UUID.V4
 import Game.Room (Room)
 import qualified Game.Room as Room
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
+import Network.WebSockets.Connection (PendingConnection, acceptRequest, rejectRequest, withPingThread)
 import Servant
+import Servant.HTML.Blaze
+import qualified Server.Flags as Flags
+import Server.PostRedirect
+import qualified Server.Templates as Templates
 import qualified Server.WebSocket as WebSocket
 import qualified System.Directory as Directory
 import System.Environment (lookupEnv)
 import qualified System.FilePath.Posix as FilePath
 import qualified System.Log.FastLogger.Date as Date
+import qualified Text.Blaze.Html5 as H
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
@@ -26,23 +38,34 @@ type StaticContentRoutes =
   "_build" :> Raw
     :<|> Raw
 
-type Routes =
-  WebSocket.WebSocketApi
-    :<|> StaticContentRoutes
+{- ORMOLU_DISABLE -}
+type Routes = Get '[HTML] H.Html
+         :<|> ( "g" :> ( PostRedirect 301 String
+                  :<|> ( Capture "roomId" Room.Id :> ( Get '[HTML] H.Html
+                                                :<|> "ws" :> WebSocket.WebSocketApi))))
+         :<|> StaticContentRoutes
+{- ORMOLU_ENABLE -}
+
+type State =
+  TVar (Map Room.Id (TVar Room))
+
+initState :: IO State
+initState =
+  STM.atomically (newTVar Map.empty)
 
 run :: IO ()
 run = do
   maybePort <- lookupEnv "PORT"
-  let port = fromMaybe 8080 (fmap read maybePort)
+  let port = maybe 8080 read maybePort
   logFile <- lookupEnv "REQUESTS_LOG"
   logger <- initializeLogger (fromMaybe "./requests.log" logFile)
-  roomVar <- STM.atomically (Room.init >>= newTVar)
+  state <- initState
   let settings =
         setPort port
           $ setLogger logger
           $ defaultSettings
   putStrLn ("Starting the application at port " ++ show port)
-  runSettings settings (app roomVar)
+  runSettings settings (app state)
 
 initializeLogger :: String -> IO ApacheLogger
 initializeLogger logFile = do
@@ -56,11 +79,73 @@ initializeLogger logFile = do
             getTime
         )
 
-app :: TVar Room -> Application
-app roomVar =
+{- ORMOLU_DISABLE -}
+app :: State -> Application
+app state =
   serve api $
-    WebSocket.server roomVar
-      :<|> staticContentServer
+        home
+  :<|> ( createRoom state
+    :<|> ( \roomId -> showRoom state roomId
+                 :<|> websocket state roomId
+                )
+        )
+  :<|> staticContentServer
+{- ORMOLU_ENABLE -}
+
+home :: Handler H.Html
+home =
+  return Templates.home
+
+createRoom :: State -> Handler (RedirectResponse String)
+createRoom state = do
+  uuid <- liftIO (fmap Data.UUID.toText Data.UUID.V4.nextRandom)
+  let roomId = Room.Id uuid
+  liftIO $ STM.atomically $ do
+    newRoom <- Room.init
+    newRoomVar <- newTVar newRoom
+    modifyTVar state (Map.insert roomId newRoomVar)
+  redirect ("/g/" ++ unpack uuid)
+
+showRoom :: State -> Room.Id -> Handler H.Html
+showRoom state roomId = do
+  maybeRoom <- fetchRoom state roomId
+  let (Room.Id uuid) = roomId
+  case maybeRoom of
+    Just _ ->
+      return
+        ( Templates.game
+            ( Flags.Flags
+                { Flags.boardSvgPath = "/map.svg",
+                  Flags.websocketUrl = mconcat ["ws://localhost:5000/g/", uuid, "/ws"]
+                }
+            )
+        )
+    Nothing ->
+      throwError $
+        ServerError
+          { errHTTPCode = 404,
+            errReasonPhrase = "That room doesn't exist.",
+            errBody = "That room doesn't exist. Maybe the game already finished or you got an invalid link?",
+            errHeaders = []
+          }
+
+websocket :: State -> Room.Id -> PendingConnection -> Handler ()
+websocket state roomId pc = liftIO $ do
+  maybeRoom <- fetchRoom state roomId
+  case maybeRoom of
+    Nothing ->
+      rejectRequest pc "The room does not exist"
+    (Just roomVar) ->
+      do
+        connection <- acceptRequest pc
+        withPingThread connection 10 (return ()) $ do
+          WebSocket.initChannel roomVar connection
+
+fetchRoom :: MonadIO m => State -> Room.Id -> m (Maybe (TVar Room))
+fetchRoom state roomId = do
+  liftIO $ STM.atomically $ do
+    rooms <- readTVar state
+    return (Map.lookup roomId rooms)
 
 api :: Proxy Routes
 api = Proxy

@@ -28,11 +28,16 @@ library
                      , Game.TurnList
                      , Game.Room
                      , Result
+                     , Server.Flags
+                     , Server.PostRedirect
                      , Server.Serialization
                      , Server.WebSocket
+                     , Server.Templates
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , async
+                     , blaze-markup
+                     , blaze-html
                      , bytestring
                      , casing
                      , conduit
@@ -44,10 +49,12 @@ library
                      , http-api-data
                      , process
                      , servant
+                     , servant-blaze
                      , servant-server
                      , servant-websockets
                      , stm
                      , text
+                     , uuid
                      , wai
                      , wai-app-static
                      , wai-logger
