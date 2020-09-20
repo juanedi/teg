@@ -8,7 +8,7 @@ module Server.WebSocket
   ( WebSocketApi,
     ClientCommand,
     DataForClient,
-    server,
+    initChannel,
   )
 where
 
@@ -20,7 +20,6 @@ import Control.Concurrent.STM.TChan (TChan)
 import qualified Control.Concurrent.STM.TChan as TChan
 import Control.Concurrent.STM.TVar (TVar, newTVar, readTVar, writeTVar)
 import Control.Exception (catchJust)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (eitherDecode, encode)
 import Data.Text (Text, pack)
 import Elm.Derive (constructorTagModifier, defaultOptions, deriveBoth)
@@ -30,8 +29,7 @@ import Game.Room (Room)
 import qualified Game.Room as Room
 import Network.WebSockets (DataMessage)
 import qualified Network.WebSockets as WebSockets
-import Network.WebSockets.Connection (Connection, PendingConnection, acceptRequest, receiveDataMessage, sendTextData, withPingThread)
-import Servant
+import Network.WebSockets.Connection (Connection, receiveDataMessage, sendTextData)
 import Servant.API.WebSocket
 import Server.Serialization (tagToApiLabel)
 
@@ -65,16 +63,6 @@ data DataForClient
   | RoomUpdate Client.Room.Room
 
 deriveBoth defaultOptions {constructorTagModifier = tagToApiLabel} ''DataForClient
-
-server :: TVar Room -> Server WebSocketApi
-server roomVar = clientChannel
-  where
-    clientChannel :: MonadIO m => PendingConnection -> m ()
-    clientChannel pc =
-      liftIO $ do
-        connection <- acceptRequest pc
-        withPingThread connection 10 (return ()) $ do
-          initChannel roomVar connection
 
 initChannel :: TVar Room -> Connection -> IO ()
 initChannel roomVar connection = do

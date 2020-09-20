@@ -6,10 +6,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
   let socket = null
 
-  function initSocket() {
+  function initSocket(url) {
     console.log("initializing game socket")
 
-    socket = new WebSocket(`ws://localhost:5000/g/foo/ws/`)
+    socket = new WebSocket(url)
 
     socket.onopen = function (event) {
       console.log("socket: connection succeeded!")
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
   app.ports.sendPortCommand.subscribe(function(cmd) {
     switch(cmd.tag) {
     case "init_socket":
-      initSocket()
+      initSocket(cmd.url)
       break
     case "send":
       sendMsg(cmd.msg)

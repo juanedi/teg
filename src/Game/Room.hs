@@ -30,7 +30,7 @@ import qualified Game.TurnList as TurnList
 import Result (Error (..))
 import Web.HttpApiData (FromHttpApiData (..))
 
-newtype Id = Id Text
+newtype Id = Id Text deriving (Eq, Ord)
 
 instance FromHttpApiData Id where
   parseUrlPiece :: Text -> Either Text Id

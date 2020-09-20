@@ -29,6 +29,7 @@ library
                      , Game.Room
                      , Result
                      , Server.Flags
+                     , Server.PostRedirect
                      , Server.Serialization
                      , Server.WebSocket
                      , Server.Templates
@@ -53,6 +54,7 @@ library
                      , servant-websockets
                      , stm
                      , text
+                     , uuid
                      , wai
                      , wai-app-static
                      , wai-logger
