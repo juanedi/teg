@@ -52,6 +52,7 @@ view model =
                     { label = "Crear juego"
                     , isEnabled = True
                     , css = []
+                    , size = Button.Large
                     }
                     [ Attr.autofocus True ]
                 ]

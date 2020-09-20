@@ -48,13 +48,15 @@ type Routes = Get '[HTML] H.Html
 
 data State = State
   { rooms :: TVar (Map Room.Id (TVar Room)),
-    host :: Text,
+    httpUrlBase :: Text,
+    wsUrlBase :: Text,
     port :: Int
   }
 
 run :: IO ()
 run = do
-  host <- getEnv "HOST"
+  httpUrlBase <- getEnv "HTTP_URL_BASE"
+  wsUrlBase <- getEnv "WS_URL_BASE"
   maybePort <- lookupEnv "PORT"
   let port = maybe 8080 read maybePort
   logFile <- lookupEnv "REQUESTS_LOG"
@@ -67,7 +69,8 @@ run = do
   let state =
         State
           { rooms = rooms,
-            host = pack host,
+            httpUrlBase = pack httpUrlBase,
+            wsUrlBase = pack wsUrlBase,
             port = port
           }
   putStrLn ("Starting the application at port " ++ show port)
@@ -122,8 +125,8 @@ showRoom state roomId = do
         ( Templates.game
             ( Flags.Flags
                 { Flags.boardSvgPath = "/map.svg",
-                  Flags.roomUrl = mconcat ["http://", host state, ":", (pack . show . port) state, "/g/", uuid, "/"],
-                  Flags.websocketUrl = mconcat ["ws://", host state, ":", (pack . show . port) state, "/g/", uuid, "/ws"]
+                  Flags.roomUrl = mconcat [httpUrlBase state, "/g/", uuid, "/"],
+                  Flags.websocketUrl = mconcat [wsUrlBase state, "/g/", uuid, "/ws"]
                 }
             )
         )
