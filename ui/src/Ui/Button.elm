@@ -26,7 +26,7 @@ submit config attrs =
             [ [ Attributes.type_ "submit"
               , Attributes.value config.label
               , Attributes.disabled (not config.isEnabled)
-              , css (styles config.size config.css)
+              , css (styles config)
               ]
             , attrs
             ]
@@ -47,7 +47,7 @@ button config attrs =
     Html.button
         (List.concat
             [ [ Attributes.disabled (not config.isEnabled)
-              , css (styles config.size config.css)
+              , css (styles config)
               ]
             , case config.onClick of
                 Nothing ->
@@ -62,18 +62,30 @@ button config attrs =
         ]
 
 
-styles : Size -> List Css.Style -> List Css.Style
-styles size customizations =
+styles :
+    { a
+        | size : Size
+        , isEnabled : Bool
+        , css : List Css.Style
+    }
+    -> List Css.Style
+styles { isEnabled, size, css } =
     List.concat
         [ [ Css.property "font" "unset"
           , Css.cursor Css.pointer
           , Css.borderStyle Css.none
           , Css.borderRadius (px 6)
-          , Css.boxShadow5 Css.inset (px -1) (px -1) (px 4) (Css.hex "#0e73a9")
-          , Css.backgroundColor (Css.hex "#1293D8")
-          , Css.color Theme.white
           , Css.fontWeight Css.bold
+          , Css.color Theme.white
           ]
+        , if isEnabled then
+            [ Css.backgroundColor (Css.hex "#1293D8")
+            , Css.boxShadow5 Css.inset (px -1) (px -1) (px 4) (Css.hex "#0e73a9")
+            ]
+
+          else
+            [ Css.backgroundColor Theme.grey
+            ]
         , case size of
             Large ->
                 [ Css.height (px 60)
@@ -86,5 +98,5 @@ styles size customizations =
                 , Css.padding2 Css.zero (px 10)
                 , Css.fontSize (px 15)
                 ]
-        , customizations
+        , css
         ]
