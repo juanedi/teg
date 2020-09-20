@@ -12,6 +12,7 @@ import Server.Serialization (tagToApiLabel)
 
 data Flags = Flags
   { boardSvgPath :: Text,
+    roomUrl :: Text,
     websocketUrl :: Text
   }
 

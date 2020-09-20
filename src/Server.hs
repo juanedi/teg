@@ -11,7 +11,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
-import Data.Text (unpack)
+import Data.Text (Text, pack, unpack)
 import qualified Data.UUID
 import qualified Data.UUID.V4
 import Game.Room (Room)
@@ -27,7 +27,7 @@ import Server.PostRedirect
 import qualified Server.Templates as Templates
 import qualified Server.WebSocket as WebSocket
 import qualified System.Directory as Directory
-import System.Environment (lookupEnv)
+import System.Environment (getEnv, lookupEnv)
 import qualified System.FilePath.Posix as FilePath
 import qualified System.Log.FastLogger.Date as Date
 import qualified Text.Blaze.Html5 as H
@@ -46,24 +46,30 @@ type Routes = Get '[HTML] H.Html
          :<|> StaticContentRoutes
 {- ORMOLU_ENABLE -}
 
-type State =
-  TVar (Map Room.Id (TVar Room))
-
-initState :: IO State
-initState =
-  STM.atomically (newTVar Map.empty)
+data State = State
+  { rooms :: TVar (Map Room.Id (TVar Room)),
+    host :: Text,
+    port :: Int
+  }
 
 run :: IO ()
 run = do
+  host <- getEnv "HOST"
   maybePort <- lookupEnv "PORT"
   let port = maybe 8080 read maybePort
   logFile <- lookupEnv "REQUESTS_LOG"
   logger <- initializeLogger (fromMaybe "./requests.log" logFile)
-  state <- initState
+  rooms <- STM.atomically (newTVar Map.empty)
   let settings =
         setPort port
           $ setLogger logger
           $ defaultSettings
+  let state =
+        State
+          { rooms = rooms,
+            host = pack host,
+            port = port
+          }
   putStrLn ("Starting the application at port " ++ show port)
   runSettings settings (app state)
 
@@ -103,7 +109,7 @@ createRoom state = do
   liftIO $ STM.atomically $ do
     newRoom <- Room.init
     newRoomVar <- newTVar newRoom
-    modifyTVar state (Map.insert roomId newRoomVar)
+    modifyTVar (rooms state) (Map.insert roomId newRoomVar)
   redirect ("/g/" ++ unpack uuid)
 
 showRoom :: State -> Room.Id -> Handler H.Html
@@ -116,7 +122,8 @@ showRoom state roomId = do
         ( Templates.game
             ( Flags.Flags
                 { Flags.boardSvgPath = "/map.svg",
-                  Flags.websocketUrl = mconcat ["ws://localhost:5000/g/", uuid, "/ws"]
+                  Flags.roomUrl = mconcat ["http://", host state, ":", (pack . show . port) state, "/g/", uuid, "/"],
+                  Flags.websocketUrl = mconcat ["ws://", host state, ":", (pack . show . port) state, "/g/", uuid, "/ws"]
                 }
             )
         )
@@ -144,7 +151,7 @@ websocket state roomId pc = liftIO $ do
 fetchRoom :: MonadIO m => State -> Room.Id -> m (Maybe (TVar Room))
 fetchRoom state roomId = do
   liftIO $ STM.atomically $ do
-    rooms <- readTVar state
+    rooms <- readTVar (rooms state)
     return (Map.lookup roomId rooms)
 
 api :: Proxy Routes

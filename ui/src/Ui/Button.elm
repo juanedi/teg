@@ -1,4 +1,4 @@
-module Ui.Button exposing (button, submit)
+module Ui.Button exposing (Size(..), button, submit)
 
 import Css exposing (px)
 import Html.Styled as Html exposing (Html)
@@ -7,9 +7,15 @@ import Html.Styled.Events as Events
 import Ui.Theme as Theme
 
 
+type Size
+    = Large
+    | Small
+
+
 submit :
     { label : String
     , isEnabled : Bool
+    , size : Size
     , css : List Css.Style
     }
     -> List (Html.Attribute msg)
@@ -20,7 +26,7 @@ submit config attrs =
             [ [ Attributes.type_ "submit"
               , Attributes.value config.label
               , Attributes.disabled (not config.isEnabled)
-              , css (styles config.css)
+              , css (styles config.size config.css)
               ]
             , attrs
             ]
@@ -32,6 +38,7 @@ button :
     { label : String
     , onClick : Maybe msg
     , isEnabled : Bool
+    , size : Size
     , css : List Css.Style
     }
     -> List (Html.Attribute msg)
@@ -40,7 +47,7 @@ button config attrs =
     Html.button
         (List.concat
             [ [ Attributes.disabled (not config.isEnabled)
-              , css (styles config.css)
+              , css (styles config.size config.css)
               ]
             , case config.onClick of
                 Nothing ->
@@ -55,12 +62,10 @@ button config attrs =
         ]
 
 
-styles : List Css.Style -> List Css.Style
-styles customizations =
+styles : Size -> List Css.Style -> List Css.Style
+styles size customizations =
     List.concat
         [ [ Css.property "font" "unset"
-          , Css.height (px 60)
-          , Css.minWidth (px 100)
           , Css.cursor Css.pointer
           , Css.borderStyle Css.none
           , Css.borderRadius (px 6)
@@ -68,7 +73,18 @@ styles customizations =
           , Css.backgroundColor (Css.hex "#1293D8")
           , Css.color Theme.white
           , Css.fontWeight Css.bold
-          , Css.padding2 Css.zero (px 18)
           ]
+        , case size of
+            Large ->
+                [ Css.height (px 60)
+                , Css.minWidth (px 100)
+                , Css.padding2 Css.zero (px 18)
+                ]
+
+            Small ->
+                [ Css.height (px 36)
+                , Css.padding2 Css.zero (px 10)
+                , Css.fontSize (px 15)
+                ]
         , customizations
         ]

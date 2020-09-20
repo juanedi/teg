@@ -33,8 +33,13 @@ type PortCommand
 
 type alias Model =
     { boardSvgPath : String
+    , roomUrl : Url
     , state : State
     }
+
+
+type alias Url =
+    String
 
 
 type State
@@ -82,6 +87,7 @@ main =
 init : Api.Flags -> ( Model, Cmd Msg )
 init flags =
     ( { boardSvgPath = flags.boardSvgPath
+      , roomUrl = flags.roomUrl
       , state = Loading
       }
     , InitSocket flags.websocketUrl
@@ -299,7 +305,7 @@ view model =
 
             Lobby lobbyState ->
                 [ staticBoard model.boardSvgPath
-                , viewLobbyModal lobbyState
+                , viewLobbyModal model.roomUrl lobbyState
                 ]
 
             Joining color ->
@@ -311,6 +317,7 @@ view model =
                 , viewWaitingForPlayersModal
                     { connectedPlayers = connectionStates.connectedPlayers
                     , readyToStart = False
+                    , roomUrl = model.roomUrl
                     }
                 ]
 
@@ -319,6 +326,7 @@ view model =
                 , viewWaitingForPlayersModal
                     { connectedPlayers = connectionStates.connectedPlayers
                     , readyToStart = True
+                    , roomUrl = model.roomUrl
                     }
                 ]
 
@@ -327,6 +335,7 @@ view model =
                 , viewWaitingForPlayersModal
                     { connectedPlayers = connectionStates.connectedPlayers
                     , readyToStart = False
+                    , roomUrl = model.roomUrl
                     }
                 ]
 
@@ -348,8 +357,8 @@ view model =
                 ]
 
 
-viewLobbyModal : LobbyState -> Html Msg
-viewLobbyModal state =
+viewLobbyModal : Url -> LobbyState -> Html Msg
+viewLobbyModal roomUrl state =
     let
         inputRow id fieldLabel inputMarkup =
             div
@@ -404,11 +413,44 @@ viewLobbyModal state =
                 { label = "Entrar"
                 , isEnabled = validateLobbyInput state /= Nothing
                 , onClick = Just JoinGameClicked
-                , css = [ Css.marginTop (px 25) ]
+                , size = Button.Large
+                , css = []
+                }
+                []
+            , viewCopyRoomUrl roomUrl
+            ]
+        )
+
+
+viewCopyRoomUrl : Url -> Html Msg
+viewCopyRoomUrl roomUrl =
+    div
+        [ css
+            [ Css.width (Css.pct 100)
+            , Css.marginTop (px 25)
+            ]
+        ]
+        [ h5 [ css [ Css.margin4 zero zero (px 5) zero ] ]
+            [ text "Compartir link" ]
+        , div [ css [ Css.displayFlex ] ]
+            [ input
+                [ Attributes.type_ "text"
+                , Attributes.value roomUrl
+                , css [ Css.flexGrow (Css.int 1) ]
+                ]
+                []
+            , Button.button
+                { label = "Copiar"
+                , onClick = Nothing
+                , isEnabled = True
+                , size = Button.Small
+                , css =
+                    [ Css.borderRadius4 zero (px 6) (px 6) zero
+                    ]
                 }
                 []
             ]
-        )
+        ]
 
 
 viewColorPicker : String -> LobbyState -> Html Msg
@@ -484,8 +526,8 @@ viewUnderlinedPlayer ( color, name ) =
         ]
 
 
-viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool } -> Html Msg
-viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
+viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool, roomUrl : String } -> Html Msg
+viewWaitingForPlayersModal { connectedPlayers, readyToStart, roomUrl } =
     Modal.view
         [ div
             [ css
@@ -508,6 +550,7 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart } =
             { label = "Empezar juego"
             , isEnabled = readyToStart
             , onClick = Just StartGameClicked
+            , size = Button.Large
             , css = [ Css.marginTop (px 25) ]
             }
             []
