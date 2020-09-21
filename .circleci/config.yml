@@ -10,7 +10,7 @@ jobs:
       - restore_cache:
           name: Restore Cached Dependencies
           keys:
-            - teg-{{ checksum "stack.yaml" }}-{{ checksum "package.yaml" }}
+            - teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
       - run:
           name: Resolve/Update Dependencies
           command: stack --no-terminal setup
@@ -27,7 +27,7 @@ jobs:
 
       - save_cache:
           name: Cache Dependencies
-          key: teg-{{ checksum "stack.yaml" }}-{{ checksum "package.yaml" }}
+          key: teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
           paths:
             - "/root/.stack"
             - ".stack-work"
