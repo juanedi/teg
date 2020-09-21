@@ -39,6 +39,8 @@ jobs:
       - attach_workspace:
           at: .
 
+      - run: apt-get update -y && apt-get install openssh-client git
+
       - run:
           name: Build image
           command: |
