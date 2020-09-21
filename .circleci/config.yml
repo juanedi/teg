@@ -5,12 +5,17 @@ jobs:
       - image: fpco/stack-build:lts-16.14
 
     steps:
+      - run:
+          name: Install git/ssh
+          command: apt-get update -y && apt-get install -y openssh-client git
+
       - checkout
 
       - restore_cache:
           name: Restore Cached Dependencies
           keys:
             - teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
+
       - run:
           name: Resolve/Update Dependencies
           command: stack --no-terminal setup
@@ -38,8 +43,6 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-
-      - run: apt-get update -y && apt-get install openssh-client git
 
       - run:
           name: Build image
