@@ -1,6 +1,6 @@
 version: 2.1
 jobs:
-  build:
+  build_haskell:
     docker:
       - image: fpco/stack-build:lts-16.14
 
@@ -37,6 +37,32 @@ jobs:
             - "/root/.stack"
             - ".stack-work"
 
+  build_elm:
+    docker:
+      - image: 'circleci/node:latest'
+
+    steps:
+      - checkout
+
+      - run:
+          name: Install node dependencies
+          command: cd ui && npm install
+
+      - run:
+          name: Build Homepage
+          command: cd ui && npx elm make src/Homepage.elm --output _build/home.js
+
+      - run:
+          name: Build Game
+          command: cd ui && npx elm make src/Main.elm --output _build/game.js
+
+      - persist_to_workspace:
+          root: ui
+          paths:
+            - "static"
+            - "_build/home.js"
+            - "_build/game.js"
+
   publish_tag:
     machine: true
 
@@ -61,12 +87,16 @@ workflows:
   version: 2
   build-release:
     jobs:
-      - build:
+      - build_haskell:
+          filters:
+            tags:
+              only: /^\d+\.\d+\.\d+/
+      - build_elm:
           filters:
             tags:
               only: /^\d+\.\d+\.\d+/
       - publish_tag:
-          requires: [ build ]
+          requires: [ build_haskell, build_elm ]
           filters:
             # tags:
             #   only: /^\d+\.\d+\.\d+/
