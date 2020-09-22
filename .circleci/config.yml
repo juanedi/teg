@@ -24,6 +24,10 @@ jobs:
           name: Build
           command: stack --no-terminal build --copy-bins
 
+      - run:
+          name: Codegen
+          command: bin/teg --codegen
+
       - persist_to_workspace:
           root: .
           paths:
@@ -36,6 +40,7 @@ jobs:
           paths:
             - "/root/.stack"
             - ".stack-work"
+            - "./ui/generated"
 
   build_elm:
     docker:
@@ -43,6 +48,9 @@ jobs:
 
     steps:
       - checkout
+
+      - attach_workspace:
+          at: .
 
       - run:
           name: Install node dependencies
@@ -92,6 +100,7 @@ workflows:
             tags:
               only: /^\d+\.\d+\.\d+/
       - build_elm:
+          requires: [ build_haskell ]
           filters:
             tags:
               only: /^\d+\.\d+\.\d+/
