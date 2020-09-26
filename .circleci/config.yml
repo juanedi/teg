@@ -34,18 +34,18 @@ jobs:
             export PATH=/root/project/ui/node_modules/.bin:$PATH
             bin/teg --codegen
 
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "Dockerfile-release"
-            - "bin/teg"
-
       - run:
           name: Build Elm apps
           command: |
             cd ui
             npx elm make src/Homepage.elm --output _build/home.js
             npx elm make src/Main.elm --output _build/game.js
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "Dockerfile-release"
+            - "bin/teg"
 
       - persist_to_workspace:
           root: ui
