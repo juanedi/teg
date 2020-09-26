@@ -12,6 +12,10 @@ ENV LC_ALL C.UTF-8
 
 WORKDIR /opt/app
 
-COPY ./bin/teg /opt/app
+COPY ./bin/teg .
+
+COPY ui/static static
+COPY ui/_build/home.js static
+COPY ui/_build/game.js static
 
 CMD /opt/app/teg --server
