@@ -98,4 +98,4 @@ workflows:
             # branches:
             #   ignore: /.*/
             branches:
-              ignore: /release-test/
+              only: /release-test/
