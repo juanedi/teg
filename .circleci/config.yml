@@ -32,6 +32,8 @@ jobs:
           name: Codegen
           command: |
             export PATH=ui/node_modules/.bin:$PATH
+            echo $PATH
+            echo `which elm-format`
             bin/teg --codegen
 
       - persist_to_workspace:
