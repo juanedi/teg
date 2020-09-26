@@ -31,7 +31,7 @@ jobs:
       - run:
           name: Codegen
           command: |
-            export PATH=./ui/node_modules/.bin:$PATH
+            export PATH=/root/project/ui/node_modules/.bin:$PATH
             pwd
             which elm-format
             bin/teg --codegen
