@@ -1,6 +1,6 @@
 version: 2.1
 jobs:
-  build_haskell:
+  build:
     docker:
       - image: fpco/stack-build:lts-16.14
 
@@ -21,12 +21,18 @@ jobs:
           command: stack --no-terminal setup
 
       - run:
-          name: Build
+          name: Install node dependencies
+          command: cd ui && npm install
+
+      - run:
+          name: Build Haskell binaries
           command: stack --no-terminal build --copy-bins
 
       - run:
           name: Codegen
-          command: bin/teg --codegen
+          command: |
+            export PATH=ui/node_modules/.bin:$PATH
+            bin/teg --codegen
 
       - persist_to_workspace:
           root: .
@@ -34,35 +40,12 @@ jobs:
             - "Dockerfile-release"
             - "bin/teg"
 
-      - save_cache:
-          name: Cache Dependencies
-          key: teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
-          paths:
-            - "/root/.stack"
-            - ".stack-work"
-            - "./ui/generated"
-
-  build_elm:
-    docker:
-      - image: 'circleci/node:latest'
-
-    steps:
-      - checkout
-
-      - attach_workspace:
-          at: .
-
       - run:
-          name: Install node dependencies
-          command: cd ui && npm install
-
-      - run:
-          name: Build Homepage
-          command: cd ui && npx elm make src/Homepage.elm --output _build/home.js
-
-      - run:
-          name: Build Game
-          command: cd ui && npx elm make src/Main.elm --output _build/game.js
+          name: Build Elm apps
+          command: |
+            cd ui
+            npx elm make src/Homepage.elm --output _build/home.js
+            npx elm make src/Main.elm --output _build/game.js
 
       - persist_to_workspace:
           root: ui
@@ -70,6 +53,14 @@ jobs:
             - "static"
             - "_build/home.js"
             - "_build/game.js"
+
+      - save_cache:
+          name: Cache Dependencies
+          key: teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
+          paths:
+            - "/root/.stack"
+            - ".stack-work"
+
 
   publish_tag:
     machine: true
@@ -95,17 +86,12 @@ workflows:
   version: 2
   build-release:
     jobs:
-      - build_haskell:
-          filters:
-            tags:
-              only: /^\d+\.\d+\.\d+/
-      - build_elm:
-          requires: [ build_haskell ]
+      - build:
           filters:
             tags:
               only: /^\d+\.\d+\.\d+/
       - publish_tag:
-          requires: [ build_haskell, build_elm ]
+          requires: [ build ]
           filters:
             # tags:
             #   only: /^\d+\.\d+\.\d+/
