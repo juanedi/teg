@@ -46,13 +46,9 @@ jobs:
           paths:
             - ".circleci/Dockerfile-release"
             - "bin/teg"
-
-      - persist_to_workspace:
-          root: ui
-          paths:
-            - "static"
-            - "_build/home.js"
-            - "_build/game.js"
+            - "ui/static"
+            - "ui/_build/home.js"
+            - "ui/_build/game.js"
 
       - save_cache:
           name: Cache Dependencies

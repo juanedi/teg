@@ -14,8 +14,8 @@ WORKDIR /opt/app
 
 COPY ./bin/teg .
 
-COPY ui/static static
-COPY ui/static/_build/home.js static/_build
-COPY ui/static/_build/game.js static/_build
+COPY ./ui/static static
+COPY ./ui/static/_build/home.js static/_build
+COPY ./ui/static/_build/game.js static/_build
 
 CMD /opt/app/teg --server
