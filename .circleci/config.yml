@@ -38,8 +38,8 @@ jobs:
           name: Build Elm apps
           command: |
             cd ui
-            npx elm make src/Homepage.elm --output _build/home.js
-            npx elm make src/Main.elm --output _build/game.js
+            npx elm make src/Homepage.elm --output static/_build/home.js
+            npx elm make src/Main.elm --output static/_build/game.js
 
       - persist_to_workspace:
           root: .
@@ -47,8 +47,6 @@ jobs:
             - ".circleci/Dockerfile-release"
             - "bin/teg"
             - "ui/static"
-            - "ui/_build/home.js"
-            - "ui/_build/game.js"
 
       - save_cache:
           name: Cache Dependencies
