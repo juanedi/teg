@@ -74,12 +74,12 @@ jobs:
           command: |
             docker build -f .circleci/Dockerfile-release -t $DOCKER_IMAGE_NAME .
 
-      # - run:
-      #     name: Publish image
-      #     command: |
-      #       echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-      #       docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:$CIRCLE_TAG
-      #       docker push $DOCKER_IMAGE_NAME
+      - run:
+          name: Publish image
+          command: |
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+            docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:$CIRCLE_TAG
+            docker push $DOCKER_IMAGE_NAME
       #       docker push $DOCKER_IMAGE_NAME:$CIRCLE_TAG
 
 workflows:
