@@ -34,16 +34,13 @@ import qualified Text.Blaze.Html5 as H
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
-type StaticContentRoutes =
-  "_build" :> Raw
-    :<|> Raw
-
 {- ORMOLU_DISABLE -}
 type Routes = Get '[HTML] H.Html
          :<|> ( "g" :> ( PostRedirect 301 String
                   :<|> ( Capture "roomId" Room.Id :> ( Get '[HTML] H.Html
                                                 :<|> "ws" :> WebSocket.WebSocketApi))))
-         :<|> StaticContentRoutes
+         :<|> Raw
+
 {- ORMOLU_ENABLE -}
 
 data State = State
@@ -160,7 +157,6 @@ fetchRoom state roomId = do
 api :: Proxy Routes
 api = Proxy
 
-staticContentServer :: Server StaticContentRoutes
+staticContentServer :: Server Raw
 staticContentServer =
-  serveDirectoryWebApp "ui/_build"
-    :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
+  serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True})

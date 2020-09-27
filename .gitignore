@@ -4,4 +4,4 @@
 ui/node_modules
 ui/elm-stuff
 ui/generated
-ui/_build
+ui/static/_build
