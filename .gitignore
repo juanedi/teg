@@ -1,5 +1,6 @@
 /.stack-work
 /log
+/bin
 
 ui/node_modules
 ui/elm-stuff
