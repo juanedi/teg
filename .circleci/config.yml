@@ -66,6 +66,10 @@ jobs:
           at: .
 
       - run:
+          name: "Debug: List files"
+          command: find .
+
+      - run:
           name: Build image
           command: |
             docker build -f .circleci/Dockerfile-release -t $DOCKER_IMAGE_NAME .
