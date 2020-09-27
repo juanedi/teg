@@ -1,0 +1,7 @@
+FROM fpco/stack-build:lts-16.14
+
+WORKDIR /opt/teg
+
+COPY ui/static static
+COPY ui/_build/home.js static
+COPY ui/_build/game.js static

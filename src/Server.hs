@@ -34,22 +34,20 @@ import qualified Text.Blaze.Html5 as H
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import WaiAppStatic.Types (ssUseHash)
 
-type StaticContentRoutes =
-  "_build" :> Raw
-    :<|> Raw
-
 {- ORMOLU_DISABLE -}
 type Routes = Get '[HTML] H.Html
          :<|> ( "g" :> ( PostRedirect 301 String
                   :<|> ( Capture "roomId" Room.Id :> ( Get '[HTML] H.Html
                                                 :<|> "ws" :> WebSocket.WebSocketApi))))
-         :<|> StaticContentRoutes
+         :<|> Raw
+
 {- ORMOLU_ENABLE -}
 
 data State = State
   { rooms :: TVar (Map Room.Id (TVar Room)),
     httpUrlBase :: Text,
     wsUrlBase :: Text,
+    assetsRoot :: FilePath,
     port :: Int
   }
 
@@ -57,20 +55,22 @@ run :: IO ()
 run = do
   httpUrlBase <- getEnv "HTTP_URL_BASE"
   wsUrlBase <- getEnv "WS_URL_BASE"
+  assetsRoot <- getEnv "ASSETS_ROOT"
   maybePort <- lookupEnv "PORT"
   let port = maybe 8080 read maybePort
   logFile <- lookupEnv "REQUESTS_LOG"
   logger <- initializeLogger (fromMaybe "./requests.log" logFile)
   rooms <- STM.atomically (newTVar Map.empty)
   let settings =
-        setPort port
-          $ setLogger logger
-          $ defaultSettings
+        setPort port $
+          setLogger logger $
+            defaultSettings
   let state =
         State
           { rooms = rooms,
             httpUrlBase = pack httpUrlBase,
             wsUrlBase = pack wsUrlBase,
+            assetsRoot = assetsRoot,
             port = port
           }
   putStrLn ("Starting the application at port " ++ show port)
@@ -98,7 +98,7 @@ app state =
                  :<|> websocket state roomId
                 )
         )
-  :<|> staticContentServer
+  :<|> staticContentServer (assetsRoot state)
 {- ORMOLU_ENABLE -}
 
 home :: Handler H.Html
@@ -109,10 +109,11 @@ createRoom :: State -> Handler (RedirectResponse String)
 createRoom state = do
   uuid <- liftIO (fmap Data.UUID.toText Data.UUID.V4.nextRandom)
   let roomId = Room.Id uuid
-  liftIO $ STM.atomically $ do
-    newRoom <- Room.init
-    newRoomVar <- newTVar newRoom
-    modifyTVar (rooms state) (Map.insert roomId newRoomVar)
+  liftIO $
+    STM.atomically $ do
+      newRoom <- Room.init
+      newRoomVar <- newTVar newRoom
+      modifyTVar (rooms state) (Map.insert roomId newRoomVar)
   redirect ("/g/" ++ unpack uuid)
 
 showRoom :: State -> Room.Id -> Handler H.Html
@@ -153,14 +154,14 @@ websocket state roomId pc = liftIO $ do
 
 fetchRoom :: MonadIO m => State -> Room.Id -> m (Maybe (TVar Room))
 fetchRoom state roomId = do
-  liftIO $ STM.atomically $ do
-    rooms <- readTVar (rooms state)
-    return (Map.lookup roomId rooms)
+  liftIO $
+    STM.atomically $ do
+      rooms <- readTVar (rooms state)
+      return (Map.lookup roomId rooms)
 
 api :: Proxy Routes
 api = Proxy
 
-staticContentServer :: Server StaticContentRoutes
-staticContentServer =
-  serveDirectoryWebApp "ui/_build"
-    :<|> (serveDirectoryWith ((defaultFileServerSettings "ui/static") {ssUseHash = True}))
+staticContentServer :: FilePath -> Server Raw
+staticContentServer root =
+  serveDirectoryWith ((defaultFileServerSettings root) {ssUseHash = True})

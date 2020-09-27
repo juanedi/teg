@@ -5,25 +5,48 @@ jobs:
       - image: fpco/stack-build:lts-16.14
 
     steps:
+      - run:
+          name: Install git/ssh
+          command: apt-get update -y && apt-get install -y openssh-client git
+
       - checkout
 
       - restore_cache:
           name: Restore Cached Dependencies
           keys:
             - teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
+
       - run:
           name: Resolve/Update Dependencies
           command: stack --no-terminal setup
 
       - run:
-          name: Build
+          name: Install node dependencies
+          command: cd ui && npm install
+
+      - run:
+          name: Build Haskell binaries
           command: stack --no-terminal build --copy-bins
+
+      - run:
+          name: Codegen
+          command: |
+            export PATH=/root/project/ui/node_modules/.bin:$PATH
+            bin/teg --codegen
+
+      - run:
+          name: Build Elm apps
+          command: |
+            cd ui
+            npx elm make src/Homepage.elm --output static/_build/home.js
+            npx elm make src/Main.elm --output static/_build/game.js
 
       - persist_to_workspace:
           root: .
           paths:
-            - "Dockerfile-release"
+            - ".circleci/Dockerfile-release"
             - "bin/teg"
+            - "ui/static"
 
       - save_cache:
           name: Cache Dependencies
@@ -32,6 +55,7 @@ jobs:
             - "/root/.stack"
             - ".stack-work"
 
+
   publish_tag:
     machine: true
 
@@ -39,19 +63,17 @@ jobs:
       - attach_workspace:
           at: .
 
-      - run: apt-get update -y && apt-get install openssh-client git
-
       - run:
           name: Build image
           command: |
-            docker build -f Dockerfile-release -t $DOCKER_IMAGE_NAME .
+            docker build -f .circleci/Dockerfile-release -t $DOCKER_IMAGE_NAME .
 
       - run:
           name: Publish image
           command: |
             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-            docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:$CIRCLE_TAG
             docker push $DOCKER_IMAGE_NAME
+            docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:$CIRCLE_TAG
             docker push $DOCKER_IMAGE_NAME:$CIRCLE_TAG
 
 workflows:
