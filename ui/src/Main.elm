@@ -552,7 +552,7 @@ viewUnderlinedPlayer ( color, name ) =
         ]
 
 
-viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool, roomUrl : String } -> Html Msg
+viewWaitingForPlayersModal : { connectedPlayers : List ( Color, String ), readyToStart : Bool, roomUrl : Url } -> Html Msg
 viewWaitingForPlayersModal { connectedPlayers, readyToStart, roomUrl } =
     Modal.view
         [ div
@@ -580,6 +580,7 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart, roomUrl } =
             , css = [ Css.marginTop (px 25) ]
             }
             []
+        , viewCopyRoomUrl roomUrl
         ]
 
 
