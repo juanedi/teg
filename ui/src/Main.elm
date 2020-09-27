@@ -573,7 +573,12 @@ viewWaitingForPlayersModal { connectedPlayers, readyToStart, roomUrl } =
                 (List.map viewUnderlinedPlayer connectedPlayers)
             ]
         , Button.button
-            { label = "Empezar juego"
+            { label =
+                if readyToStart then
+                    "Empezar juego"
+
+                else
+                    "Esperando jugadores"
             , isEnabled = readyToStart
             , onClick = Just StartGameClicked
             , size = Button.Large
