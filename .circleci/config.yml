@@ -44,7 +44,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - "Dockerfile-release"
+            - ".circleci/Dockerfile-release"
             - "bin/teg"
 
       - persist_to_workspace:
@@ -72,7 +72,7 @@ jobs:
       - run:
           name: Build image
           command: |
-            docker build -f Dockerfile-release -t $DOCKER_IMAGE_NAME .
+            docker build -f .circleci/Dockerfile-release -t $DOCKER_IMAGE_NAME .
 
       # - run:
       #     name: Publish image
