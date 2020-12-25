@@ -37,9 +37,16 @@ in with nixpkgs;
 stdenv.mkDerivation {
   name = "teg";
   buildInputs = [
-    ghc
     niv.niv
+    entr
+    overmind
+
+    ghc
     haskellPackages.ormolu
+
+    elmPackages.elm
+    elmPackages.elm-format
+    elmPackages.elm-live
   ];
 
 }
