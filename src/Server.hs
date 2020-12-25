@@ -18,7 +18,7 @@ import Game.Room (Room)
 import qualified Game.Room as Room
 import Network.Wai
 import Network.Wai.Handler.Warp
-import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType' (..), apacheLogger, initLogger)
+import Network.Wai.Logger (ApacheLogger, IPAddrSource (..), LogType (..), apacheLogger, initLogger)
 import Network.WebSockets.Connection (PendingConnection, acceptRequest, rejectRequest, withPingThread)
 import Servant
 import Servant.HTML.Blaze

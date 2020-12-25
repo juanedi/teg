@@ -1,8 +1,7 @@
-/.stack-work
+/_build
 /log
 /bin
 
-ui/node_modules
 ui/elm-stuff
 ui/generated
 ui/static/_build

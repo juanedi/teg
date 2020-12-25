@@ -1,3 +1,14 @@
+build:
+	ghc \
+    --make \
+    -isrc \
+    -odir _build \
+    -hidir _build \
+    -o bin/teg \
+    -fwarn-unused-imports -Wno-name-shadowing \
+    -XOverloadedStrings \
+    app/Main.hs
+
 push-release:
 	@[ "${TAG}" ] || (echo "TAG variable not set"; exit 1)
 	git tag -a ${TAG} -m "release version ${TAG}"
