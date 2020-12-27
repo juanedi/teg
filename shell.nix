@@ -34,8 +34,8 @@ let
     ];
   ghc = nixpkgs.haskellPackages.ghcWithPackages haskellDeps;
 in with nixpkgs;
-stdenv.mkDerivation {
-  name = "teg";
+
+pkgs.mkShell {
   buildInputs = [
     niv.niv
     entr
@@ -48,5 +48,4 @@ stdenv.mkDerivation {
     elmPackages.elm-format
     elmPackages.elm-live
   ];
-
 }
