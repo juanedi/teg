@@ -31,6 +31,11 @@ let
       wai-logger
       warp
       websockets
+
+      # for tests
+      hspec
+      hspec-wai
+      hspec-wai-json
     ];
   ghc = nixpkgs.haskellPackages.ghcWithPackages haskellDeps;
 in with nixpkgs;
