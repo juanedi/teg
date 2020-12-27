@@ -1,12 +1,13 @@
 build:
 	ghc \
     --make \
-    -isrc \
     -odir _build \
     -hidir _build \
-    -o bin/teg \
-    -fwarn-unused-imports -Wno-name-shadowing \
     -XOverloadedStrings \
+    -fwarn-unused-imports -Wno-name-shadowing \
+    -threaded -rtsopts -with-rtsopts=-N \
+    -isrc \
+    -o bin/teg \
     app/Main.hs
 
 push-release:
