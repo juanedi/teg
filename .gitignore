@@ -1,6 +1,7 @@
 /_build
 /log
 /bin
+/.direnv
 
 ui/elm-stuff
 ui/generated
