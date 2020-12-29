@@ -28,7 +28,9 @@ jobs:
 
       - run:
           name: Build Haskell binaries
-          command: nix-shell --run 'make build'
+          command: |
+            mkdir bin
+            nix-shell --run 'make build'
 
       - run:
           name: Codegen
