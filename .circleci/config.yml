@@ -2,44 +2,43 @@ version: 2.1
 jobs:
   build:
     docker:
-      - image: fpco/stack-build:lts-16.14
+      - image: nixos/nix:2.3.6
+    environment:
+      NIXPKGS_ALLOW_BROKEN: 1
 
     steps:
       - run:
-          name: Install git/ssh
-          command: apt-get update -y && apt-get install -y openssh-client git
+          name: Updating channels
+          command: nix-channel --update
+
+      - run:
+          name: Install system dependencies
+          command: nix-env -i openssh git gnumake
 
       - checkout
 
-      - restore_cache:
-          name: Restore Cached Dependencies
-          keys:
-            - teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
+      # - restore_cache:
+      #     name: Restore Cached Dependencies
+      #     keys:
+      #       - teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
 
       - run:
           name: Resolve/Update Dependencies
-          command: stack --no-terminal setup
-
-      - run:
-          name: Install node dependencies
-          command: cd ui && npm install
+          command: nix-shell --run true
 
       - run:
           name: Build Haskell binaries
-          command: stack --no-terminal build --copy-bins
+          command: nix-shell --run 'make build'
 
       - run:
           name: Codegen
-          command: |
-            export PATH=/root/project/ui/node_modules/.bin:$PATH
-            bin/teg --codegen
+          command: nix-shell --run 'bin/teg --codegen'
 
       - run:
           name: Build Elm apps
           command: |
-            cd ui
-            npx elm make src/Homepage.elm --output static/_build/home.js
-            npx elm make src/Main.elm --output static/_build/game.js
+            nix-shell --run 'elm make src/Homepage.elm --output static/_build/home.js'
+            nix-shell --run 'elm make src/Main.elm --output static/_build/game.js'
 
       - persist_to_workspace:
           root: .
@@ -48,12 +47,12 @@ jobs:
             - "bin/teg"
             - "ui/static"
 
-      - save_cache:
-          name: Cache Dependencies
-          key: teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
-          paths:
-            - "/root/.stack"
-            - ".stack-work"
+      # - save_cache:
+      #     name: Cache Dependencies
+      #     key: teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
+      #     paths:
+      #       - "/root/.stack"
+      #       - ".stack-work"
 
 
   publish_tag:
