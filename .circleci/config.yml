@@ -39,8 +39,8 @@ jobs:
       - run:
           name: Build Elm apps
           command: |
-            nix-shell --run 'elm make src/Homepage.elm --output static/_build/home.js'
-            nix-shell --run 'elm make src/Main.elm --output static/_build/game.js'
+            nix-shell --run 'cd ui && elm make src/Homepage.elm --output static/_build/home.js'
+            nix-shell --run 'cd ui && elm make src/Main.elm --output static/_build/game.js'
 
       - persist_to_workspace:
           root: .
