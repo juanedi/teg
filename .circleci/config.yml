@@ -26,10 +26,14 @@ jobs:
           name: Build docker image
           command: nix-build --argstr imageName $DOCKER_IMAGE_NAME --argstr tag $CIRCLE_TAG release.nix --show-trace
 
+      - run:
+          name: Copying result to current directory
+          command: cp $(readlink -f result) ./docker-image-teg.tar.gz
+
       - persist_to_workspace:
           root: .
           paths:
-            - "./result"
+          - "./docker-image-teg.tar.gz"
 
       # - save_cache:
       #     name: Cache Dependencies
@@ -49,7 +53,7 @@ jobs:
       - run:
           name: Load image
           command: |
-            docker load -i result
+            docker load -i docker-image-teg.tar.gz
 
       - run:
           name: Publish image
