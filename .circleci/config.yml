@@ -1,6 +1,6 @@
 version: 2.1
 jobs:
-  build:
+  build_image:
     docker:
       - image: nixos/nix:2.3.6
     environment:
@@ -11,10 +11,6 @@ jobs:
           name: Updating channels
           command: nix-channel --update
 
-      - run:
-          name: Install system dependencies
-          command: nix-env -i openssh git gnumake
-
       - checkout
 
       # - restore_cache:
@@ -24,7 +20,7 @@ jobs:
 
       - run:
           name: Build docker image
-          command: nix-build release.nix
+          command: nix-build --arg tag $CIRCLE_TAG release.nix
 
       - persist_to_workspace:
           root: .
@@ -63,7 +59,7 @@ workflows:
   version: 2
   build-release:
     jobs:
-      - build:
+      - build_image:
           filters:
             tags:
               only: /^\d+\.\d+\.\d+/

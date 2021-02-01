@@ -1,9 +1,9 @@
-{ system ? builtins.currentSystem }:
+{ system ? builtins.currentSystem, tag }:
 
 let
   sources = import ./nix/sources.nix;
   pkgs = import sources.nixpkgs { };
-  teg = import ./teg.nix;
+  teg = import ./teg.nix { inherit tag; };
 
   name = "jedi/teg";
   tag = "latest";
