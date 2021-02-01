@@ -11,7 +11,7 @@ in pkgs.dockerTools.buildLayeredImage {
   contents = [ teg ];
 
   config = {
-    Cmd = [ "/teg/bin/teg" "--server" ];
+    Cmd = [ "/bin/teg" "--server" ];
     WorkingDir = "/";
   };
 }
