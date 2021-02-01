@@ -11,6 +11,10 @@ jobs:
           name: Updating channels
           command: nix-channel --update
 
+      - run:
+          name: Install system dependencies
+          command: nix-env -i openssh git
+
       - checkout
 
       # - restore_cache:
