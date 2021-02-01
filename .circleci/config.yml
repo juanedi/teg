@@ -23,31 +23,13 @@ jobs:
       #       - teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
 
       - run:
-          name: Resolve/Update Dependencies
-          command: nix-shell --run true
-
-      - run:
-          name: Build Haskell binaries
-          command: |
-            mkdir bin
-            nix-shell --run 'make build'
-
-      - run:
-          name: Codegen
-          command: nix-shell --run 'bin/teg --codegen'
-
-      - run:
-          name: Build Elm apps
-          command: |
-            nix-shell --run 'cd ui && elm make src/Homepage.elm --output static/_build/home.js'
-            nix-shell --run 'cd ui && elm make src/Main.elm --output static/_build/game.js'
+          name: Build docker image
+          command: nix-build release.nix
 
       - persist_to_workspace:
           root: .
           paths:
-            - ".circleci/Dockerfile-release"
-            - "bin/teg"
-            - "ui/static"
+            - "./result"
 
       # - save_cache:
       #     name: Cache Dependencies
@@ -85,8 +67,8 @@ workflows:
           filters:
             tags:
               only: /^\d+\.\d+\.\d+/
-      - publish_tag:
-          requires: [ build ]
+      # - publish_tag:
+      #     requires: [ build ]
           # filters:
           #   tags:
           #     only: /^\d+\.\d+\.\d+/

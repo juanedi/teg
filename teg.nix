@@ -46,4 +46,6 @@ derivation {
   inherit ghc;
   src = ./.;
   coreutils = nixpkgs.coreutils;
+  elm = nixpkgs.elmPackages.elm;
+  elm_format = nixpkgs.elmPackages.elm-format;
 }
