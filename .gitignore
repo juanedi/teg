@@ -3,6 +3,8 @@
 /bin
 /.direnv
 
+result
+
 ui/elm-stuff
 ui/generated
 ui/static/_build
