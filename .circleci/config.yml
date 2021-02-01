@@ -24,7 +24,7 @@ jobs:
 
       - run:
           name: Build docker image
-          command: nix-build --argstr tag $CIRCLE_TAG release.nix --show-trace
+          command: nix-build --argstr imageName $DOCKER_IMAGE_NAME --argstr tag $CIRCLE_TAG release.nix --show-trace
 
       - persist_to_workspace:
           root: .
@@ -47,9 +47,9 @@ jobs:
           at: .
 
       - run:
-          name: Build image
+          name: Load image
           command: |
-            docker build -f .circleci/Dockerfile-release -t $DOCKER_IMAGE_NAME .
+            docker load -i result
 
       - run:
           name: Publish image
@@ -67,10 +67,10 @@ workflows:
           filters:
             tags:
               only: /^\d+\.\d+\.\d+/
-      # - publish_tag:
-      #     requires: [ build ]
-          # filters:
-          #   tags:
-          #     only: /^\d+\.\d+\.\d+/
-          #   branches:
-          #     ignore: /.*/
+      - publish_tag:
+          requires: [ build_image ]
+          filters:
+            tags:
+              only: /^\d+\.\d+\.\d+/
+            branches:
+              ignore: /.*/

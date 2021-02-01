@@ -1,13 +1,13 @@
-{ system ? builtins.currentSystem, tag }:
+{ system ? builtins.currentSystem, imageName, tag }:
 
 let
   sources = import ./nix/sources.nix;
   pkgs = import sources.nixpkgs { };
   teg = import ./teg.nix { inherit tag; };
 
-  name = "jedi/teg";
 in pkgs.dockerTools.buildLayeredImage {
-  inherit name tag;
+  name = imageName;
+  inherit tag;
   contents = [ teg ];
 
   config = {
