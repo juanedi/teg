@@ -1,9 +1,9 @@
 { tag }:
 
 let
-  sources = import ./nix/sources.nix;
+  sources = import ./sources.nix;
   nixpkgs = import sources.nixpkgs { };
-  ghc = import ./nix/ghc.nix;
+  ghc = import ./ghc.nix;
 in
 derivation {
   name = "teg";

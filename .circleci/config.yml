@@ -24,7 +24,7 @@ jobs:
 
       - run:
           name: Build docker image
-          command: nix-build --argstr imageName $DOCKER_IMAGE_NAME --argstr tag $CIRCLE_TAG release.nix --show-trace
+          command: nix-build --argstr imageName $DOCKER_IMAGE_NAME --argstr tag $CIRCLE_TAG nix/docker_image.nix --show-trace
 
       - run:
           name: Hard-linking result to current directory

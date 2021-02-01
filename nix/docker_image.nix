@@ -1,7 +1,7 @@
 { system ? builtins.currentSystem, imageName, tag }:
 
 let
-  sources = import ./nix/sources.nix;
+  sources = import ./sources.nix;
   pkgs = import sources.nixpkgs { };
   teg = import ./teg.nix { inherit tag; };
 
