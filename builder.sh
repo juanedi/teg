@@ -4,7 +4,7 @@ export ELM_HOME=$(mktemp -d)
 set -euo pipefail
 
 mkdir -p $out/bin
-mkdir -p $out/assets
+mkdir -p $out/assets/_build
 
 tar -xzf $src
 cd teg-$tag
@@ -24,7 +24,7 @@ $out/bin/teg --codegen
 
 cd ui
 
-elm make src/Homepage.elm --output $out/assets/home.js
-elm make src/Main.elm --output $out/assets/game.js
-
 cp -R static/* $out/assets
+
+elm make src/Homepage.elm --output $out/assets/_build/home.js
+elm make src/Main.elm --output $out/assets/_build/game.js
