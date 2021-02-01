@@ -48,15 +48,7 @@ derivation {
   inherit tag;
   inherit ghc;
 
-  # src = builtins.fetchurl {
-  #   url = https://github.com/juanedi/teg/archive/0.0.4.tar.gz;
-  #   sha256 = "1eab2944424f40a1fd3b02a7f200da917b631a28386fae66e7d71deefdb42177";
-  # };
-
   src = builtins.fetchurl "https://github.com/juanedi/teg/archive/${tag}.tar.gz";
-
-  # # TODO: replace with the above!
-  # src = ./teg.tar.gz;
 
   coreutils = nixpkgs.coreutils;
   gnutar = nixpkgs.gnutar;

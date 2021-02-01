@@ -24,7 +24,7 @@ jobs:
 
       - run:
           name: Build docker image
-          command: nix-build --arg tag $CIRCLE_TAG release.nix
+          command: nix-build --argstr tag $CIRCLE_TAG release.nix
 
       - persist_to_workspace:
           root: .
