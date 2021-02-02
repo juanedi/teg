@@ -1,7 +1,7 @@
 let
   sources = import ./sources.nix;
   nixpkgs = import sources.nixpkgs { };
-  haskellDeps = ps:
+  baseDeps = ps:
     with ps; [
       base
       aeson
@@ -30,11 +30,15 @@ let
       wai-logger
       warp
       websockets
-
-      # for tests
+    ];
+  developmentDeps = ps:
+    with ps; [
       hspec
       hspec-wai
       hspec-wai-json
     ];
-in
-nixpkgs.haskellPackages.ghcWithPackages haskellDeps
+in with nixpkgs.haskellPackages;
+{
+  development = ghcWithPackages ( ps : (baseDeps ps) ++ (developmentDeps ps));
+  release = ghcWithPackages baseDeps;
+}
