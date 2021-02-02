@@ -3,7 +3,7 @@
 let
   sources = import ./sources.nix;
   nixpkgs = import sources.nixpkgs { };
-  ghc = (import ./nix/ghc.nix).release;
+  ghc = (import ./ghc.nix).release;
 in
 derivation {
   name = "teg";
