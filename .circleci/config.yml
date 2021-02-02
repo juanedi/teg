@@ -17,11 +17,6 @@ jobs:
 
       - checkout
 
-      # - restore_cache:
-      #     name: Restore Cached Dependencies
-      #     keys:
-      #       - teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
-
       - run:
           name: Build docker image
           command: nix-build --show-trace --argstr imageName $DOCKER_IMAGE_NAME --argstr tag ${CIRCLE_TAG:-$CIRCLE_BRANCH} nix/docker_image.nix
@@ -34,13 +29,6 @@ jobs:
           root: .
           paths:
           - "./docker-image-teg.tar.gz"
-
-      # - save_cache:
-      #     name: Cache Dependencies
-      #     key: teg-{{ checksum "stack.yaml" }}-{{ checksum "teg.cabal" }}
-      #     paths:
-      #       - "/root/.stack"
-      #       - ".stack-work"
 
 
   publish_tag:
