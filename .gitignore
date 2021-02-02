@@ -1,8 +1,10 @@
-/.stack-work
+/_build
 /log
 /bin
+/.direnv
 
-ui/node_modules
+result
+
 ui/elm-stuff
 ui/generated
 ui/static/_build
