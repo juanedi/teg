@@ -8,3 +8,7 @@ result
 ui/elm-stuff
 ui/generated
 ui/static/_build
+
+dist
+dist-newstyle
+TAGS
