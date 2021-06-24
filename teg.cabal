@@ -36,6 +36,32 @@ executable teg
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:    base ^>=4.14.1.0
+                    , aeson
+                    , async
+                    , blaze-markup
+                    , blaze-html
+                    , bytestring
+                    , casing
+                    , conduit
+                    , containers
+                    , directory
+                    , elm-bridge
+                    , fast-logger
+                    , filepath
+                    , http-api-data
+                    , process
+                    , servant
+                    , servant-blaze
+                    , servant-server
+                    , servant-websockets
+                    , stm
+                    , text
+                    , uuid
+                    , wai
+                    , wai-app-static
+                    , wai-logger
+                    , warp
+                    , websockets
     hs-source-dirs:   app, src
     default-language: Haskell2010
     default-extensions:  OverloadedStrings
